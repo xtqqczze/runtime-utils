@@ -142,7 +142,7 @@ public class Job
 
                     lock (_lastLogEntry)
                     {
-                        if (_lastLogEntry.Elapsed.TotalSeconds < 10)
+                        if (_lastLogEntry.Elapsed.TotalSeconds < 2 * 60)
                         {
                             continue;
                         }
