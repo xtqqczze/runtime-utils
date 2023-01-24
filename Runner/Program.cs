@@ -70,11 +70,11 @@ public class Job
             .Replace("{{SOURCE_REPOSITORY}}", _sourceRepository)
             .Replace("{{SOURCE_BRANCH}}", _sourceBranch);
 
-        await LogAsync($"Using script '{script}'");
+        await LogAsync($"Using script {script}");
 
         await File.WriteAllTextAsync("script.sh", script);
 
-        await RunProcessAsync("bash", "script.sh");
+        await RunProcessAsync("bash", "-x script.sh");
 
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
@@ -136,7 +136,7 @@ public class Job
         List<string> output = new();
 
         await RunProcessAsync(
-            "jitutils/bin/jit-analyze",
+            "bin/jit-analyze",
             $"-b jit-diffs/{folder}/dasmset_1/base -d jit-diffs/{folder}/dasmset_2/base -r -c 100",
             output);
 

@@ -1,6 +1,6 @@
-git clone --no-tags --single-branch https://github.com/dotnet/runtime
+git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime
 cd runtime
-sudo eng/install-native-dependencies.sh linux
+eng/install-native-dependencies.sh linux
 
 ./build.sh clr+libs -c Release
 ./build.sh clr -c Checked
@@ -10,11 +10,13 @@ cd ../..
 
 mkdir ../artifacts-main
 mkdir ../artifacts-pr
-cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/ ../artifacts-main
-cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/ ../artifacts-pr
+cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/* ../artifacts-main
+cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/* ../artifacts-pr
 
 git remote add other https://github.com/{{SOURCE_REPOSITORY}}
 git fetch other {{SOURCE_BRANCH}}
+git config --global user.email build@build.foo
+git config --global user.name build
 git merge --no-edit other/{{SOURCE_BRANCH}}
 
 ./build.sh clr.CoreLib -c Release
@@ -22,17 +24,16 @@ git merge --no-edit other/{{SOURCE_BRANCH}}
 cp -r artifacts/bin/coreclr/linux.x64.Release/IL/System.Private.CoreLib.dll ../artifacts-pr
 cd ..
 
-git clone --no-tags --single-branch https://github.com/dotnet/jitutils.git
-cd jitutils
-./bootstrap.sh
-cd ..
+wget https://dot.net/v1/dotnet-install.sh
+chmod +x dotnet-install.sh
+./dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/share/dotnet
 
 mkdir jit-diffs
 mkdir jit-diffs/corelib
 mkdir jit-diffs/frameworks
 
-jitutils/bin/jit-diff diff --output jit-diffs/corelib --corelib --core_root artifacts-main --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-main/crossgen2/crossgen2
-jitutils/bin/jit-diff diff --output jit-diffs/corelib --corelib --core_root artifacts-pr --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-pr/crossgen2/crossgen2
+bin/jit-diff diff --output jit-diffs/corelib --corelib --core_root artifacts-main --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-main/crossgen2/crossgen2
+bin/jit-diff diff --output jit-diffs/corelib --corelib --core_root artifacts-pr --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-pr/crossgen2/crossgen2
 
-jitutils/bin/jit-diff diff --output jit-diffs/frameworks --frameworks --pmi --core_root artifacts-main --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-main/crossgen2/crossgen2
-jitutils/bin/jit-diff diff --output jit-diffs/frameworks --frameworks --pmi --core_root artifacts-pr --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-pr/crossgen2/crossgen2
+bin/jit-diff diff --output jit-diffs/frameworks --frameworks --pmi --core_root artifacts-main --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-main/crossgen2/crossgen2
+bin/jit-diff diff --output jit-diffs/frameworks --frameworks --pmi --core_root artifacts-pr --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-pr/crossgen2/crossgen2
