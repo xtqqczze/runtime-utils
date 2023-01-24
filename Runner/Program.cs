@@ -27,7 +27,7 @@ public class Job
     private readonly HttpClient _client;
     private readonly Channel<string> _channel;
     private CancellationToken _jobTimeout;
-    private Stopwatch _lastLogEntry = new();
+    private readonly Stopwatch _lastLogEntry = new();
 
     public Job(string jobId, string sourceRepository, string sourceBranch)
     {
@@ -53,7 +53,7 @@ public class Job
     {
         _lastLogEntry.Start();
 
-        using var jobCts = new CancellationTokenSource(TimeSpan.FromHours(2));
+        using var jobCts = new CancellationTokenSource(TimeSpan.FromHours(5));
         _jobTimeout = jobCts.Token;
 
         Task channelReaderTask = Task.Run(() => ReadChannelAsync());
@@ -91,8 +91,8 @@ public class Job
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
 
-        await JitDiffAsync(baseline: true, corelib: false);
-        await JitDiffAsync(baseline: false, corelib: false);
+        await JitDiffAsync(baseline: true, corelib: false, sequential: true);
+        await JitDiffAsync(baseline: false, corelib: false, sequential: true);
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
@@ -192,14 +192,15 @@ public class Job
         return string.Join('\n', output);
     }
 
-    private async Task JitDiffAsync(bool baseline, bool corelib)
+    private async Task JitDiffAsync(bool baseline, bool corelib, bool sequential = false)
     {
         string corelibOrFrameworks = corelib ? "corelib" : "frameworks";
         string corelibOrFrameworksArgs = corelib ? "--corelib" : "--frameworks --pmi";
         string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
 
         await RunProcessAsync("bin/jit-diff",
-            $"diff --output jit-diffs/{corelibOrFrameworks} {corelibOrFrameworksArgs} " +
+            $"diff {(sequential ? "--sequential" : "")} " +
+            $"--output jit-diffs/{corelibOrFrameworks} {corelibOrFrameworksArgs} " +
             $"--core_root {artifactsFolder} " +
             $"--base runtime/artifacts/bin/coreclr/linux.x64.Checked " +
             $"--crossgen {artifactsFolder}/crossgen2/crossgen2");
