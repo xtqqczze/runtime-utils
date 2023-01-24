@@ -31,9 +31,3 @@ chmod +x dotnet-install.sh
 mkdir jit-diffs
 mkdir jit-diffs/corelib
 mkdir jit-diffs/frameworks
-
-bin/jit-diff diff --output jit-diffs/corelib --corelib --core_root artifacts-main --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-main/crossgen2/crossgen2
-bin/jit-diff diff --output jit-diffs/corelib --corelib --core_root artifacts-pr --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-pr/crossgen2/crossgen2
-
-bin/jit-diff diff --output jit-diffs/frameworks --frameworks --pmi --core_root artifacts-main --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-main/crossgen2/crossgen2
-bin/jit-diff diff --output jit-diffs/frameworks --frameworks --pmi --core_root artifacts-pr --base runtime/artifacts/bin/coreclr/linux.x64.Checked --crossgen artifacts-pr/crossgen2/crossgen2

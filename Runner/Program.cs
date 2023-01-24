@@ -36,7 +36,6 @@ public class Job
 
         _client = new HttpClient
         {
-            Timeout = TimeSpan.FromSeconds(10),
             DefaultRequestVersion = HttpVersion.Version20,
             BaseAddress = new Uri("https://mihubot.xyz/api/RuntimeUtils/Jobs/")
         };
@@ -56,7 +55,15 @@ public class Job
 
         Task channelReaderTask = Task.Run(() => ReadChannelAsync());
 
-        await RunJobAsyncCore();
+        try
+        {
+            await RunJobAsyncCore();
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Something went wrong: {ex}");
+            await LogAsync(ex.ToString());
+        }
 
         _channel.Writer.TryComplete();
         await channelReaderTask.WaitAsync(_jobTimeout);
@@ -76,9 +83,13 @@ public class Job
 
         await RunProcessAsync("bash", "-x script.sh");
 
+        await JitDiffAsync(baseline: true, corelib: true);
+        await JitDiffAsync(baseline: false, corelib: true);
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
 
+        await JitDiffAsync(baseline: true, corelib: false);
+        await JitDiffAsync(baseline: false, corelib: false);
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
@@ -135,12 +146,24 @@ public class Job
     {
         List<string> output = new();
 
-        await RunProcessAsync(
-            "bin/jit-analyze",
+        await RunProcessAsync("bin/jit-analyze",
             $"-b jit-diffs/{folder}/dasmset_1/base -d jit-diffs/{folder}/dasmset_2/base -r -c 100",
             output);
 
         return string.Join('\n', output);
+    }
+
+    private async Task JitDiffAsync(bool baseline, bool corelib)
+    {
+        string corelibOrFrameworks = corelib ? "corelib" : "frameworks";
+        string corelibOrFrameworksArgs = corelib ? "--corelib" : "--frameworks --pmi";
+        string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
+
+        await RunProcessAsync("bin/jit-diff",
+            $"diff --output jit-diffs/{corelibOrFrameworks} {corelibOrFrameworksArgs} " +
+            $"--core_root {artifactsFolder} " +
+            $"--base runtime/artifacts/bin/coreclr/linux.x64.Checked " +
+            $"--crossgen {artifactsFolder}/crossgen2/crossgen2");
     }
 
     private async Task RunProcessAsync(string fileName, string arguments, List<string>? output = null)
