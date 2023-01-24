@@ -27,6 +27,7 @@ public class Job
     private readonly HttpClient _client;
     private readonly Channel<string> _channel;
     private CancellationToken _jobTimeout;
+    private Stopwatch _lastLogEntry = new();
 
     public Job(string jobId, string sourceRepository, string sourceBranch)
     {
@@ -50,6 +51,8 @@ public class Job
 
     public async Task RunJobAsync()
     {
+        _lastLogEntry.Start();
+
         using var jobCts = new CancellationTokenSource(TimeSpan.FromHours(2));
         _jobTimeout = jobCts.Token;
 
@@ -99,7 +102,16 @@ public class Job
 
     private async Task LogAsync(string message)
     {
-        await _channel.Writer.WriteAsync($"[{DateTime.UtcNow:HH:mm:ss}] {message}", _jobTimeout);
+        lock (_lastLogEntry)
+        {
+            _lastLogEntry.Restart();
+        }
+
+        try
+        {
+            await _channel.Writer.WriteAsync($"[{DateTime.UtcNow:HH:mm:ss}] {message}", _jobTimeout);
+        }
+        catch { }
     }
 
     private async Task ErrorAsync(string message)
@@ -118,6 +130,30 @@ public class Job
 
     private async Task ReadChannelAsync()
     {
+        bool completed = false;
+
+        Task heartbeatTask = Task.Run(async () =>
+        {
+            try
+            {
+                while (!Volatile.Read(ref completed))
+                {
+                    await Task.Delay(100, _jobTimeout);
+
+                    lock (_lastLogEntry)
+                    {
+                        if (_lastLogEntry.Elapsed.TotalSeconds < 10)
+                        {
+                            continue;
+                        }
+                    }
+
+                    await LogAsync("Heartbeat - I'm still here");
+                }
+            }
+            catch { }
+        });
+
         try
         {
             ChannelReader<string> reader = _channel.Reader;
@@ -140,6 +176,9 @@ public class Job
         {
             await ErrorAsync(ex.ToString());
         }
+
+        Volatile.Write(ref completed, true);
+        await heartbeatTask.WaitAsync(_jobTimeout);
     }
 
     private async Task<string> JitAnalyzeAsync(string folder)
