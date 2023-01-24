@@ -200,6 +200,7 @@ public class Job
 
         await RunProcessAsync("bin/jit-diff",
             $"diff {(sequential ? "--sequential" : "")} " +
+            (corelib ? "" : "--cctors ") +
             $"--output jit-diffs/{corelibOrFrameworks} {corelibOrFrameworksArgs} " +
             $"--core_root {artifactsFolder} " +
             $"--base runtime/artifacts/bin/coreclr/linux.x64.Checked " +
