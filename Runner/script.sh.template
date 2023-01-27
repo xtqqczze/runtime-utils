@@ -1,5 +1,6 @@
 git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime
 cd runtime
+git log -1
 eng/install-native-dependencies.sh linux
 
 ./build.sh clr+libs -c Release
@@ -15,6 +16,7 @@ cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/* ../artifacts-p
 
 git remote add other https://github.com/{{SOURCE_REPOSITORY}}
 git fetch other {{SOURCE_BRANCH}}
+git log other -1
 git config --global user.email build@build.foo
 git config --global user.name build
 git merge --no-edit other/{{SOURCE_BRANCH}}

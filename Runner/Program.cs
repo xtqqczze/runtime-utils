@@ -96,8 +96,18 @@ public class Job
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
-        //await RunProcessAsync("zip", "-r jit-diffs.zip jit-diffs");
-        //await UploadArtifactAsync("jit-diffs.zip");
+        await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
+        await ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
+
+        await ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main");
+        await ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr");
+
+        async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
+        {
+            zipFileName = $"{zipFileName}.zip";
+            await RunProcessAsync("zip", $"-r {zipFileName} {folderPath}");
+            await UploadArtifactAsync(zipFileName);
+        }
     }
 
     private async Task LogAsync(string message)
