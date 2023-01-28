@@ -12,6 +12,7 @@ RUN dotnet publish -c Release -o /runner --no-restore
 FROM mcr.microsoft.com/dotnet/sdk:6.0-jammy
 COPY --from=build-runner /runner /runner
 COPY --from=build-jitutils /source/jitutils/bin /runner/bin
+RUN apt-get update && apt-get install zip -y
 
 WORKDIR /runner
 ENTRYPOINT ["dotnet", "Runner.dll"]
