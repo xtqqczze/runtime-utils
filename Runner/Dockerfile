@@ -14,6 +14,7 @@ COPY --from=build-runner /runner /runner
 COPY --from=build-jitutils /source/jitutils/bin /runner/bin
 RUN apt-get update && apt-get install zip -y
 RUN curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 6.0
+RUN /root/.dotnet/dotnet --version
 
 WORKDIR /runner
-ENTRYPOINT ["dotnet", "Runner.dll"]
+ENTRYPOINT ["/root/.dotnet/dotnet", "Runner.dll"]
