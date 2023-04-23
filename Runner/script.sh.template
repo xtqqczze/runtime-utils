@@ -28,7 +28,7 @@ cd ..
 
 wget https://dot.net/v1/dotnet-install.sh
 chmod +x dotnet-install.sh
-./dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/share/dotnet
+./dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/lib/dotnet
 
 mkdir jit-diffs
 mkdir jit-diffs/corelib
