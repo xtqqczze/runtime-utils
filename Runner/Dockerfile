@@ -13,8 +13,7 @@ FROM mcr.microsoft.com/dotnet-buildtools/prereqs:ubuntu-22.04
 COPY --from=build-runner /runner /runner
 COPY --from=build-jitutils /source/jitutils/bin /runner/bin
 RUN apt-get update && apt-get install zip -y
-RUN curl -sSL https://dot.net/v1/dotnet-install.sh | bash /dev/stdin --channel 6.0
-RUN /root/.dotnet/dotnet --version
+RUN apt-get install -y dotnet-sdk-6.0
 
 WORKDIR /runner
-ENTRYPOINT ["/root/.dotnet/dotnet", "Runner.dll"]
+ENTRYPOINT ["dotnet", "Runner.dll"]
