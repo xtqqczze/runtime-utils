@@ -86,21 +86,23 @@ public class Job
 
         await RunProcessAsync("bash", "-x script.sh");
 
-        await JitDiffAsync(baseline: true, corelib: true);
-        await JitDiffAsync(baseline: false, corelib: true);
-        string coreLibDiff = await JitAnalyzeAsync("corelib");
-        await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
+        //await JitDiffAsync(baseline: true, corelib: true);
+        //await JitDiffAsync(baseline: false, corelib: true);
+        //string coreLibDiff = await JitAnalyzeAsync("corelib");
+        //await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
 
-        await JitDiffAsync(baseline: true, corelib: false, sequential: false);
-        await JitDiffAsync(baseline: false, corelib: false, sequential: false);
+        await JitDiffAsync(baseline: true, corelib: false, sequential: true);
+        await JitDiffAsync(baseline: false, corelib: false, sequential: true);
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
-        await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
+        //await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
         await ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
         await ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main");
         await ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr");
+        await ZipAndUploadArtifactAsync("build-clr-checked-main", "clr-checked-main");
+        await ZipAndUploadArtifactAsync("build-clr-checked-pr", "clr-checked-pr");
 
         async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
         {
@@ -207,14 +209,15 @@ public class Job
         string corelibOrFrameworks = corelib ? "corelib" : "frameworks";
         string corelibOrFrameworksArgs = corelib ? "--corelib" : "--frameworks --pmi";
         string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
+        string checkedClrFolder = baseline ? "clr-checked-main" : "clr-checked-pr";
 
         await RunProcessAsync("bin/jit-diff",
             $"diff {(sequential ? "--sequential" : "")} " +
             (corelib ? "" : "--cctors ") +
             $"--output jit-diffs/{corelibOrFrameworks} {corelibOrFrameworksArgs} " +
             $"--core_root {artifactsFolder} " +
-            $"--base {artifactsFolder} " +
-            $"--crossgen {artifactsFolder}/crossgen2/crossgen2");
+            $"--base {checkedClrFolder} " +
+            (corelib ? $"--crossgen {artifactsFolder}/crossgen2/crossgen2" : ""));
     }
 
     private async Task RunProcessAsync(string fileName, string arguments, List<string>? output = null)

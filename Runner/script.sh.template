@@ -14,19 +14,29 @@ git checkout main
 
 eng/install-native-dependencies.sh linux
 
-./build.sh clr+libs -rc Checked -c Release
+./build.sh clr+libs -c Release
+./build.sh clr -c Checked
+cd src/tests
+./build.sh Release generatelayoutonly
+cd ../..
 
 mkdir ../artifacts-main
-cp -r artifacts/bin/coreclr/linux.x64.Checked/* ../artifacts-main
-cp -r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-main
+mkdir ../clr-checked-main
+cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/* ../artifacts-main
+cp -r artifacts/bin/coreclr/linux.x64.Checked/* ../clr-checked-main
 
 git checkout pr
 
-./build.sh clr+libs.pretest -rc Checked -c Release
+./build.sh clr+libs.pretest -c Checked
+./build.sh clr.CoreLib -c Release
+cd src/tests
+./build.sh Release generatelayoutonly
+cd ../..
 
 mkdir ../artifacts-pr
-cp -r artifacts/bin/coreclr/linux.x64.Checked/* ../artifacts-pr
-cp -r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-pr
+mkdir ../clr-checked-pr
+cp -r artifacts/tests/coreclr/linux.x64.Release/Tests/Core_Root/* ../artifacts-pr
+cp -r artifacts/bin/coreclr/linux.x64.Checked/* ../clr-checked-pr
 
 cd ..
 
