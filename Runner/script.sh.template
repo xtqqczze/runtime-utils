@@ -1,26 +1,31 @@
 git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime
 cd runtime
 git log -1
-eng/install-native-dependencies.sh linux
-
-./build.sh clr+libs -c Release
-./build.sh clr -c Checked
-
-mkdir ../artifacts-main
-cp -r artifacts/bin/coreclr/linux.x64.Release/* ../artifacts-main
-cp -r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-main
 
 git remote add other https://github.com/{{SOURCE_REPOSITORY}}
 git fetch other {{SOURCE_BRANCH}}
 git log other/{{SOURCE_BRANCH}} -1
+git checkout -b pr
 git config --global user.email build@build.foo
 git config --global user.name build
 git merge --no-edit other/{{SOURCE_BRANCH}}
 
-./build.sh clr+libs.pretest -rc Release -c Release
+git checkout main
+
+eng/install-native-dependencies.sh linux
+
+./build.sh clr+libs -rc Checked -c Release
+
+mkdir ../artifacts-main
+cp -r artifacts/bin/coreclr/linux.x64.Checked/* ../artifacts-main
+cp -r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-main
+
+git checkout pr
+
+./build.sh clr+libs.pretest -rc Checked -c Release
 
 mkdir ../artifacts-pr
-cp -r artifacts/bin/coreclr/linux.x64.Release/* ../artifacts-pr
+cp -r artifacts/bin/coreclr/linux.x64.Checked/* ../artifacts-pr
 cp -r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-pr
 
 cd ..

@@ -91,8 +91,8 @@ public class Job
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
 
-        await JitDiffAsync(baseline: true, corelib: false, sequential: true);
-        await JitDiffAsync(baseline: false, corelib: false, sequential: true);
+        await JitDiffAsync(baseline: true, corelib: false, sequential: false);
+        await JitDiffAsync(baseline: false, corelib: false, sequential: false);
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
@@ -213,7 +213,7 @@ public class Job
             (corelib ? "" : "--cctors ") +
             $"--output jit-diffs/{corelibOrFrameworks} {corelibOrFrameworksArgs} " +
             $"--core_root {artifactsFolder} " +
-            $"--base runtime/artifacts/bin/coreclr/linux.x64.Checked " +
+            $"--base {artifactsFolder} " +
             $"--crossgen {artifactsFolder}/crossgen2/crossgen2");
     }
 
