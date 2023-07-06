@@ -67,8 +67,14 @@ public class Job
             await LogAsync(ex.ToString());
         }
 
-        _channel.Writer.TryComplete();
-        await channelReaderTask.WaitAsync(_jobTimeout);
+        try
+        {
+            _channel.Writer.TryComplete();
+            await channelReaderTask.WaitAsync(_jobTimeout);
+        }
+        catch { }
+
+        await _client.GetStringAsync($"Complete/{_jobId}");
     }
 
     private async Task RunJobAsyncCore()
@@ -200,7 +206,7 @@ public class Job
     {
         List<string> output = new();
 
-        await RunProcessAsync("bin/jit-analyze",
+        await RunProcessAsync("jitutils/bin/jit-analyze",
             $"-b jit-diffs/{folder}/dasmset_1/base -d jit-diffs/{folder}/dasmset_2/base -r -c 100",
             output);
 
@@ -213,7 +219,7 @@ public class Job
         string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
         string checkedClrFolder = baseline ? "clr-checked-main" : "clr-checked-pr";
 
-        await RunProcessAsync("bin/jit-diff",
+        await RunProcessAsync("jitutils/bin/jit-diff",
             $"diff {(sequential ? "--sequential" : "")} --cctors " +
             $"--output jit-diffs/{corelibOrFrameworks} --{corelibOrFrameworks} --pmi " +
             $"--core_root {artifactsFolder} " +

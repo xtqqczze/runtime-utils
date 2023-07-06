@@ -1,5 +1,5 @@
+git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime runtime
 cd runtime
-git pull --progress origin main
 git log -1
 chmod 777 build.sh
 
@@ -11,8 +11,16 @@ git reset --hard origin/main
 git config --global user.email build@build.foo
 git config --global user.name build
 git merge --no-edit other/{{SOURCE_BRANCH}}
+git log -1
 
 eng/install-native-dependencies.sh linux
+apt-get install -y zip wget
+
+cd ..
+git clone --no-tags --single-branch --progress https://github.com/dotnet/jitutils.git
+cd jitutils
+./bootstrap.sh
+cd ../runtime
 
 mkdir ../artifacts-main
 mkdir ../artifacts-pr
