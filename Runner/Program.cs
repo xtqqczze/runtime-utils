@@ -60,7 +60,19 @@ public class Job
         {
             _metadata = await GetFromJsonAsync<Dictionary<string, string>>("Metadata");
 
-            await RunJobAsyncCore();
+            await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
+            await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
+            await LogAsync($"{nameof(CustomArguments)}={CustomArguments}");
+
+            await CloneRuntimeAndSetupToolsAsync();
+
+            await BuildRuntimeAsync();
+
+            await InstallRuntimeDotnetSdkAsync();
+
+            await CollectCorelibDiffsAsync();
+
+            await CollectFrameworksDiffsAsync();
         }
         catch (Exception ex)
         {
@@ -75,59 +87,141 @@ public class Job
         }
         catch { }
 
-        await _client.GetStringAsync($"Complete/{_jobId}");
+        await _client.GetStringAsync($"Complete/{_jobId}", CancellationToken.None);
     }
 
-    private async Task RunJobAsyncCore()
+    private async Task CloneRuntimeAndSetupToolsAsync()
     {
-        await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
-        await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
-        await LogAsync($"{nameof(CustomArguments)}={CustomArguments}");
+        Task cloneRuntimeTask = Task.Run(async () =>
+        {
+            const string LogPrefix = "Setup runtime";
 
-        string template = await File.ReadAllTextAsync("script.sh.template");
-        string script = template
-            .ReplaceLineEndings()
-            .Replace("{{SOURCE_REPOSITORY}}", SourceRepo)
-            .Replace("{{SOURCE_BRANCH}}", SourceBranch);
+            string template = await File.ReadAllTextAsync("setup-runtime.sh.template");
+            string script = template
+                .ReplaceLineEndings()
+                .Replace("{{SOURCE_REPOSITORY}}", SourceRepo)
+                .Replace("{{SOURCE_BRANCH}}", SourceBranch);
 
-        await LogAsync($"Using script:\n{script}");
+            await LogAsync($"Using runtime setup script:\n{script}");
+            await File.WriteAllTextAsync("setup-runtime.sh", script);
+            await RunProcessAsync("bash", "-x setup-runtime.sh", logPrefix: LogPrefix);
+        });
 
-        await File.WriteAllTextAsync("script.sh", script);
+        Task setupZipAndWgetTask = Task.Run(async () =>
+        {
+            const string LogPrefix = "Setup zip & wget";
+            await RunProcessAsync("apt-get", "install -y zip wget", logPrefix: LogPrefix);
+        });
 
-        await RunProcessAsync("bash", "-x script.sh");
+        Task setupJitutilsTask = Task.Run(async () =>
+        {
+            const string LogPrefix = "Setup jitutils";
+            await setupZipAndWgetTask;
+            await RunProcessAsync("git", "clone --no-tags --single-branch --progress https://github.com/dotnet/jitutils.git", logPrefix: LogPrefix);
+            await RunProcessAsync("bash", "-x jitutils/bootstrap.sh", logPrefix: LogPrefix);
+        });
 
-        await ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main");
-        await ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr");
-        await ZipAndUploadArtifactAsync("build-clr-checked-main", "clr-checked-main");
-        await ZipAndUploadArtifactAsync("build-clr-checked-pr", "clr-checked-pr");
+        Task createDirectoriesTask = Task.Run(() =>
+        {
+            Directory.CreateDirectory("artifacts-main");
+            Directory.CreateDirectory("artifacts-pr");
+            Directory.CreateDirectory("clr-checked-main");
+            Directory.CreateDirectory("clr-checked-pr");
+            Directory.CreateDirectory("jit-diffs");
+            Directory.CreateDirectory("jit-diffs/corelib");
+            Directory.CreateDirectory("jit-diffs/frameworks");
+        });
 
+        await createDirectoriesTask;
+        await setupJitutilsTask;
+        await setupZipAndWgetTask;
+        await cloneRuntimeTask;
+    }
+
+    private async Task BuildRuntimeAsync()
+    {
+        await BuildAndCopyRuntimeBranchBitsAsync("main");
+        Task uploadMainBitsTask = ZipAndUploadRuntimeBitsAsync("main");
+
+        await RunProcessAsync("git", "switch pr", workDir: "runtime");
+
+        await BuildAndCopyRuntimeBranchBitsAsync("pr");
+        await ZipAndUploadRuntimeBitsAsync("pr");
+
+        await uploadMainBitsTask;
+
+        async Task ZipAndUploadRuntimeBitsAsync(string branch)
+        {
+            await ZipAndUploadArtifactAsync($"build-artifacts-{branch}", $"artifacts-{branch}");
+            await ZipAndUploadArtifactAsync($"build-clr-checked-{branch}", $"clr-checked-{branch}");
+        }
+
+        async Task BuildAndCopyRuntimeBranchBitsAsync(string branch)
+        {
+            await RunProcessAsync("bash", "+x build.sh clr+libs -c Release", logPrefix: $"{branch} release", workDir: "runtime");
+
+            Task copyMainReleaseBitsTask = Task.Run(async () =>
+            {
+                await RunProcessAsync("cp", $"-r artifacts/bin/coreclr/linux.x64.Release/* ../artifacts-{branch}", logPrefix: $"{branch} release", workDir: "runtime");
+                await RunProcessAsync("cp", $"-r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-{branch}", logPrefix: $"{branch} release", workDir: "runtime");
+            });
+
+            await RunProcessAsync("bash", "+x build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
+            await RunProcessAsync("cp", $"-r artifacts/bin/coreclr/linux.x64.Checked/* ../clr-checked-{branch}", logPrefix: $"{branch} checked", workDir: "runtime");
+
+            await copyMainReleaseBitsTask;
+        }
+    }
+
+    private async Task InstallRuntimeDotnetSdkAsync()
+    {
+        await RunProcessAsync("wget", "https://dot.net/v1/dotnet-install.sh");
+        await RunProcessAsync("bash", "-x dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/lib/dotnet");
+    }
+
+    private async Task CollectCorelibDiffsAsync()
+    {
         await JitDiffAsync(baseline: true, corelib: true);
         await JitDiffAsync(baseline: false, corelib: true);
+
+        Task uploadCorelibDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
+
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
-        await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
 
-        // Avoid running diffs for corelib twice
+        await uploadCorelibDiffsTask;
+    }
+
+    private async Task CollectFrameworksDiffsAsync()
+    {
         if (CustomArguments.Contains("remove-corelib-before-frameworks", StringComparison.OrdinalIgnoreCase))
         {
+            // Avoid running diffs for corelib twice
             File.Delete("artifacts-main/System.Private.CoreLib.dll");
             File.Delete("artifacts-pr/System.Private.CoreLib.dll");
         }
 
-        bool runSequential = await GetSystemMemoryGBAsync() < 26;
+        bool runSequential =
+            CustomArguments.Contains("run-sequential", StringComparison.OrdinalIgnoreCase) ? true :
+            CustomArguments.Contains("run-parallel", StringComparison.OrdinalIgnoreCase) ? false :
+            await GetSystemMemoryGBAsync() < 16;
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
         await JitDiffAsync(baseline: false, corelib: false, sequential: runSequential);
+
+        Task uploadFrameworksDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
+
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
-        await ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
-        async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
-        {
-            zipFileName = $"{zipFileName}.zip";
-            await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}");
-            await UploadArtifactAsync(zipFileName);
-        }
+        await uploadFrameworksDiffsTask;
+    }
+
+    private async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
+    {
+        zipFileName = $"{zipFileName}.zip";
+        await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}", logPrefix: zipFileName);
+        await UploadArtifactAsync(zipFileName);
     }
 
     private async Task LogAsync(string message)
@@ -229,7 +323,7 @@ public class Job
             $"--base {checkedClrFolder}");
     }
 
-    private async Task RunProcessAsync(string fileName, string arguments, List<string>? output = null)
+    private async Task RunProcessAsync(string fileName, string arguments, List<string>? output = null, string? logPrefix = null, string? workDir = null)
     {
         await LogAsync($"Running '{fileName} {arguments}'");
 
@@ -239,6 +333,7 @@ public class Job
             {
                 RedirectStandardError = true,
                 RedirectStandardOutput = true,
+                WorkingDirectory = workDir ?? string.Empty,
             }
         };
 
@@ -247,7 +342,18 @@ public class Job
         await Task.WhenAll(
             Task.Run(() => ReadOutputStreamAsync(process.StandardOutput)),
             Task.Run(() => ReadOutputStreamAsync(process.StandardError)),
-            process.WaitForExitAsync(_jobTimeout));
+            Task.Run(async () =>
+            {
+                try
+                {
+                    await process.WaitForExitAsync(_jobTimeout);
+                }
+                catch
+                {
+                    process.Kill();
+                    throw;
+                }
+            }));
 
         async Task ReadOutputStreamAsync(StreamReader reader)
         {
@@ -259,6 +365,11 @@ public class Job
                     {
                         output.Add(line);
                     }
+                }
+
+                if (logPrefix is not null)
+                {
+                    line = $"[{logPrefix}] {line}";
                 }
 
                 await LogAsync(line);
