@@ -101,8 +101,11 @@ public class Job
         await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
 
         // Avoid running diffs for corelib twice
-        File.Delete("artifacts-main/System.Private.CoreLib.dll");
-        File.Delete("artifacts-pr/System.Private.CoreLib.dll");
+        if (CustomArguments.Contains("remove-corelib-before-frameworks", StringComparison.OrdinalIgnoreCase))
+        {
+            File.Delete("artifacts-main/System.Private.CoreLib.dll");
+            File.Delete("artifacts-pr/System.Private.CoreLib.dll");
+        }
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: true);
         await JitDiffAsync(baseline: false, corelib: false, sequential: true);
