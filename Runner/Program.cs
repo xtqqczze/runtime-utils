@@ -89,10 +89,19 @@ public class Job
 
         await RunProcessAsync("bash", "-x script.sh");
 
+        await ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main");
+        await ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr");
+        await ZipAndUploadArtifactAsync("build-clr-checked-main", "clr-checked-main");
+        await ZipAndUploadArtifactAsync("build-clr-checked-pr", "clr-checked-pr");
+
         await JitDiffAsync(baseline: true, corelib: true);
         await JitDiffAsync(baseline: false, corelib: true);
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
+
+        // Avoid running diffs for corelib twice
+        File.Delete("artifacts-main/System.Private.CoreLib.dll");
+        File.Delete("artifacts-pr/System.Private.CoreLib.dll");
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: true);
         await JitDiffAsync(baseline: false, corelib: false, sequential: true);
@@ -102,15 +111,10 @@ public class Job
         await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
         await ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
-        await ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main");
-        await ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr");
-        await ZipAndUploadArtifactAsync("build-clr-checked-main", "clr-checked-main");
-        await ZipAndUploadArtifactAsync("build-clr-checked-pr", "clr-checked-pr");
-
         async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
         {
             zipFileName = $"{zipFileName}.zip";
-            await RunProcessAsync("zip", $"-r {zipFileName} {folderPath}");
+            await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}");
             await UploadArtifactAsync(zipFileName);
         }
     }
