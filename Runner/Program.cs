@@ -98,6 +98,7 @@ public class Job
         await JitDiffAsync(baseline: false, corelib: true);
         string coreLibDiff = await JitAnalyzeAsync("corelib");
         await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
+        await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
 
         // Avoid running diffs for corelib twice
         File.Delete("artifacts-main/System.Private.CoreLib.dll");
@@ -107,8 +108,6 @@ public class Job
         await JitDiffAsync(baseline: false, corelib: false, sequential: true);
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
-
-        await ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
         await ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
         async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
