@@ -1,6 +1,7 @@
 ﻿using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
+using System.Runtime.InteropServices;
 using System.Threading.Channels;
 
 string? jobId = Environment.GetEnvironmentVariable("JOB_ID");
@@ -113,8 +114,10 @@ public class Job
             File.Delete("artifacts-pr/System.Private.CoreLib.dll");
         }
 
-        await JitDiffAsync(baseline: true, corelib: false, sequential: true);
-        await JitDiffAsync(baseline: false, corelib: false, sequential: true);
+        bool runSequential = await GetSystemMemoryGBAsync() < 26;
+
+        await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
+        await JitDiffAsync(baseline: false, corelib: false, sequential: runSequential);
         string frameworksDiff = await JitAnalyzeAsync("frameworks");
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
         await ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
@@ -317,5 +320,29 @@ public class Job
             await LogAsync($"Failed to post resource '{path}': {ex}");
             throw;
         }
+    }
+
+    private async Task<int> GetSystemMemoryGBAsync()
+    {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        {
+            List<string> lines = new();
+            await RunProcessAsync("/proc/meminfo", "", lines);
+            foreach (string line in lines)
+            {
+                if (line.StartsWith("MemAvailable:", StringComparison.Ordinal))
+                {
+                    string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+
+                    int gbAvailable = (int)(long.Parse(parts[1]) / 1024 / 1024);
+
+                    await LogAsync($"System memory available: {gbAvailable} GB");
+
+                    return gbAvailable;
+                }
+            }
+        }
+
+        return 1;
     }
 }
