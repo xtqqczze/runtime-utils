@@ -1,5 +1,5 @@
-git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime
 cd runtime
+git pull --progress origin main
 git log -1
 chmod 777 build.sh
 

@@ -4,36 +4,33 @@ using System.Net.Http.Json;
 using System.Threading.Channels;
 
 string? jobId = Environment.GetEnvironmentVariable("JOB_ID");
-string? sourceRepository = Environment.GetEnvironmentVariable("JOB_PR_REPO");
-string? sourceBranch = Environment.GetEnvironmentVariable("JOB_PR_BRANCH");
 
 Console.WriteLine($"{nameof(jobId)}={jobId}");
-Console.WriteLine($"{nameof(sourceRepository)}={sourceRepository}");
-Console.WriteLine($"{nameof(sourceBranch)}={sourceBranch}");
 
-if (jobId is null || sourceRepository is null || sourceBranch is null)
+if (jobId is null)
 {
     return;
 }
 
-var job = new Job(jobId, sourceRepository, sourceBranch);
+var job = new Job(jobId);
 await job.RunJobAsync();
 
 public class Job
 {
     private readonly string _jobId;
-    private readonly string _sourceRepository;
-    private readonly string _sourceBranch;
     private readonly HttpClient _client;
     private readonly Channel<string> _channel;
     private CancellationToken _jobTimeout;
     private readonly Stopwatch _lastLogEntry = new();
+    private Dictionary<string, string> _metadata = new();
 
-    public Job(string jobId, string sourceRepository, string sourceBranch)
+    public string SourceRepo => _metadata["PrRepo"];
+    public string SourceBranch => _metadata["PrBranch"];
+    public string CustomArguments => _metadata["CustomArguments"];
+
+    public Job(string jobId)
     {
         _jobId = jobId;
-        _sourceRepository = sourceRepository;
-        _sourceBranch = sourceBranch;
 
         _client = new HttpClient
         {
@@ -60,6 +57,8 @@ public class Job
 
         try
         {
+            _metadata = await GetFromJsonAsync<Dictionary<string, string>>("Metadata");
+
             await RunJobAsyncCore();
         }
         catch (Exception ex)
@@ -74,13 +73,17 @@ public class Job
 
     private async Task RunJobAsyncCore()
     {
+        await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
+        await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
+        await LogAsync($"{nameof(CustomArguments)}={CustomArguments}");
+
         string template = await File.ReadAllTextAsync("script.sh.template");
         string script = template
             .ReplaceLineEndings()
-            .Replace("{{SOURCE_REPOSITORY}}", _sourceRepository)
-            .Replace("{{SOURCE_BRANCH}}", _sourceBranch);
+            .Replace("{{SOURCE_REPOSITORY}}", SourceRepo)
+            .Replace("{{SOURCE_BRANCH}}", SourceBranch);
 
-        await LogAsync($"Using script {script}");
+        await LogAsync($"Using script:\n{script}");
 
         await File.WriteAllTextAsync("script.sh", script);
 
@@ -132,10 +135,7 @@ public class Job
         {
             _channel.Writer.TryComplete(new Exception(message));
 
-            using var response = await _client.PostAsJsonAsync(
-                $"Logs/{_jobId}",
-                new[] { $"ERROR: {message}" },
-                _jobTimeout);
+            await PostAsJsonAsync("Logs", new[] { $"ERROR: {message}" });
         }
         catch { }
     }
@@ -178,10 +178,7 @@ public class Job
                     messages.Add(message);
                 }
 
-                using var response = await _client.PostAsJsonAsync(
-                    $"Logs/{_jobId}",
-                    messages.ToArray(),
-                    _jobTimeout);
+                await PostAsJsonAsync("Logs", messages.ToArray());
             }
         }
         catch (Exception ex)
@@ -278,9 +275,32 @@ public class Job
         await using FileStream fs = File.OpenRead(path);
         using StreamContent content = new(fs);
 
-        using var response = await _client.PostAsync(
-            $"Artifact/{_jobId}/{Uri.EscapeDataString(name)}",
-            content,
-            _jobTimeout);
+        await PostAsJsonAsync("Artifact", content, Uri.EscapeDataString(name));
+    }
+
+    private async Task<T> GetFromJsonAsync<T>(string path)
+    {
+        try
+        {
+            return await _client.GetFromJsonAsync<T>($"{path}/{_jobId}", _jobTimeout) ?? throw new Exception("Null response");
+        }
+        catch (Exception ex)
+        {
+            await LogAsync($"Failed to fetch resource '{path}': {ex}");
+            throw;
+        }
+    }
+
+    private async Task PostAsJsonAsync(string path, object? value, string? pathArgument = null)
+    {
+        try
+        {
+            using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}/{pathArgument}", value, _jobTimeout);
+        }
+        catch (Exception ex)
+        {
+            await LogAsync($"Failed to post resource '{path}': {ex}");
+            throw;
+        }
     }
 }
