@@ -279,7 +279,10 @@ public class Job
         await using FileStream fs = File.OpenRead(path);
         using StreamContent content = new(fs);
 
-        await PostAsJsonAsync("Artifact", content, Uri.EscapeDataString(name));
+        using var response = await _client.PostAsync(
+            $"Artifact/{_jobId}/{Uri.EscapeDataString(name)}",
+            content,
+            _jobTimeout);
     }
 
     private async Task<T> GetFromJsonAsync<T>(string path)
@@ -295,11 +298,11 @@ public class Job
         }
     }
 
-    private async Task PostAsJsonAsync(string path, object? value, string? pathArgument = null)
+    private async Task PostAsJsonAsync(string path, object? value)
     {
         try
         {
-            using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}/{pathArgument}", value, _jobTimeout);
+            using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, _jobTimeout);
         }
         catch (Exception ex)
         {
