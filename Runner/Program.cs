@@ -118,7 +118,7 @@ public class Job
             const string LogPrefix = "Setup jitutils";
             await setupZipAndWgetTask;
             await RunProcessAsync("git", "clone --no-tags --single-branch --progress https://github.com/dotnet/jitutils.git", logPrefix: LogPrefix);
-            await RunProcessAsync("bash", "-x jitutils/bootstrap.sh", logPrefix: LogPrefix);
+            await RunProcessAsync("bash", "bootstrap.sh", logPrefix: LogPrefix, workDir: "jitutils");
         });
 
         Task createDirectoriesTask = Task.Run(() =>
@@ -158,7 +158,7 @@ public class Job
 
         async Task BuildAndCopyRuntimeBranchBitsAsync(string branch)
         {
-            await RunProcessAsync("bash", "+x build.sh clr+libs -c Release", logPrefix: $"{branch} release", workDir: "runtime");
+            await RunProcessAsync("bash", "build.sh clr+libs -c Release", logPrefix: $"{branch} release", workDir: "runtime");
 
             Task copyMainReleaseBitsTask = Task.Run(async () =>
             {
@@ -166,7 +166,7 @@ public class Job
                 await RunProcessAsync("cp", $"-r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-{branch}", logPrefix: $"{branch} release", workDir: "runtime");
             });
 
-            await RunProcessAsync("bash", "+x build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
+            await RunProcessAsync("bash", "build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
             await RunProcessAsync("cp", $"-r artifacts/bin/coreclr/linux.x64.Checked/* ../clr-checked-{branch}", logPrefix: $"{branch} checked", workDir: "runtime");
 
             await copyMainReleaseBitsTask;
@@ -176,7 +176,7 @@ public class Job
     private async Task InstallRuntimeDotnetSdkAsync()
     {
         await RunProcessAsync("wget", "https://dot.net/v1/dotnet-install.sh");
-        await RunProcessAsync("bash", "-x dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/lib/dotnet");
+        await RunProcessAsync("bash", "dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/lib/dotnet");
     }
 
     private async Task CollectCorelibDiffsAsync()
@@ -325,7 +325,12 @@ public class Job
 
     private async Task RunProcessAsync(string fileName, string arguments, List<string>? output = null, string? logPrefix = null, string? workDir = null)
     {
-        await LogAsync($"Running '{fileName} {arguments}'");
+        if (logPrefix is not null)
+        {
+            logPrefix = $"[{logPrefix}] ";
+        }
+
+        await LogAsync($"{logPrefix}Running '{fileName} {arguments}'");
 
         using var process = new Process
         {
@@ -367,12 +372,7 @@ public class Job
                     }
                 }
 
-                if (logPrefix is not null)
-                {
-                    line = $"[{logPrefix}] {line}";
-                }
-
-                await LogAsync(line);
+                await LogAsync($"{logPrefix}{line}");
             }
         }
     }
