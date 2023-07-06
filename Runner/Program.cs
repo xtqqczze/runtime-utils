@@ -326,9 +326,7 @@ public class Job
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            List<string> lines = new();
-            await RunProcessAsync("/proc/meminfo", "", lines);
-            foreach (string line in lines)
+            foreach (string line in await File.ReadAllLinesAsync("/proc/meminfo", _jobTimeout))
             {
                 if (line.StartsWith("MemAvailable:", StringComparison.Ordinal))
                 {
