@@ -203,8 +203,8 @@ public class Job
         }
 
         bool runSequential =
-            CustomArguments.Contains("run-sequential", StringComparison.OrdinalIgnoreCase) ? true :
-            CustomArguments.Contains("run-parallel", StringComparison.OrdinalIgnoreCase) ? false :
+            CustomArguments.Contains("force-frameworks-sequential", StringComparison.OrdinalIgnoreCase) ? true :
+            CustomArguments.Contains("force-frameworks-parallel", StringComparison.OrdinalIgnoreCase) ? false :
             await GetSystemMemoryGBAsync() < 16;
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
