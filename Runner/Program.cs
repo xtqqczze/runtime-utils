@@ -160,16 +160,18 @@ public class Job
 
         async Task BuildAndCopyRuntimeBranchBitsAsync(string branch)
         {
+            string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+
             await RunProcessAsync("bash", "build.sh clr+libs -c Release", logPrefix: $"{branch} release", workDir: "runtime");
 
             Task copyReleaseBitsTask = Task.Run(async () =>
             {
-                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.x64.Release/. artifacts-{branch}", logPrefix: $"{branch} release");
-                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/runtime/net8.0-linux-Release-x64/. artifacts-{branch}", logPrefix: $"{branch} release");
+                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.{arch}.Release/. artifacts-{branch}", logPrefix: $"{branch} release");
+                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/runtime/net8.0-linux-Release-{arch}/. artifacts-{branch}", logPrefix: $"{branch} release");
             });
 
             await RunProcessAsync("bash", "build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
-            await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.x64.Checked/. clr-checked-{branch}", logPrefix: $"{branch} checked");
+            await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.{arch}.Checked/. clr-checked-{branch}", logPrefix: $"{branch} checked");
 
             await copyReleaseBitsTask;
         }
