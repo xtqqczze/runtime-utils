@@ -235,7 +235,10 @@ public class Job
         try
         {
             TimeSpan elapsed = _jobStartStopwatch.Elapsed;
-            await _channel.Writer.WriteAsync($"[{elapsed:HH:mm:ss}] {message}", _jobTimeout);
+            int hours = elapsed.Hours;
+            int minutes = elapsed.Minutes;
+            int seconds = elapsed.Seconds;
+            await _channel.Writer.WriteAsync($"[{hours:D2}:{minutes:D2}:{seconds:D2}] {message}", _jobTimeout);
         }
         catch { }
     }
