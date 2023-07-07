@@ -127,6 +127,7 @@ public class Job
             if (IsArm)
             {
                 const string ToolsLink = "https://raw.githubusercontent.com/MihaZupan/runtime-utils/clang-tools";
+                Directory.CreateDirectory("jitutils/bin");
                 await RunProcessAsync("wget", $"-O jitutils/bin/clang-format {ToolsLink}/clang-format", logPrefix: LogPrefix);
                 await RunProcessAsync("wget", $"-O jitutils/bin/clang-tidy {ToolsLink}/clang-tidy", logPrefix: LogPrefix);
                 await RunProcessAsync("chmod", "751 jitutils/bin/clang-format", logPrefix: LogPrefix);
