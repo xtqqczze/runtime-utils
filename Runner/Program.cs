@@ -30,6 +30,8 @@ public class Job
     public string SourceBranch => _metadata["PrBranch"];
     public string CustomArguments => _metadata["CustomArguments"];
 
+    public static bool IsArm => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
+
     public Job(string jobId)
     {
         _jobId = jobId;
@@ -119,7 +121,18 @@ public class Job
         {
             const string LogPrefix = "Setup jitutils";
             await setupZipAndWgetTask;
+
             await RunProcessAsync("git", "clone --no-tags --single-branch --progress https://github.com/dotnet/jitutils.git", logPrefix: LogPrefix);
+
+            if (IsArm)
+            {
+                const string ToolsLink = "https://raw.githubusercontent.com/MihaZupan/runtime-utils/clang-tools";
+                await RunProcessAsync("wget", $"-O jitutils/bin/clang-format {ToolsLink}/clang-format", logPrefix: LogPrefix);
+                await RunProcessAsync("wget", $"-O jitutils/bin/clang-tidy {ToolsLink}/clang-tidy", logPrefix: LogPrefix);
+                await RunProcessAsync("chmod", "751 jitutils/bin/clang-format", logPrefix: LogPrefix);
+                await RunProcessAsync("chmod", "751 jitutils/bin/clang-tidy", logPrefix: LogPrefix);
+            }
+
             await RunProcessAsync("bash", "bootstrap.sh", logPrefix: LogPrefix, workDir: "jitutils");
         });
 
@@ -160,7 +173,7 @@ public class Job
 
         async Task BuildAndCopyRuntimeBranchBitsAsync(string branch)
         {
-            string arch = RuntimeInformation.ProcessArchitecture == Architecture.Arm64 ? "arm64" : "x64";
+            string arch = IsArm ? "arm64" : "x64";
 
             await RunProcessAsync("bash", "build.sh clr+libs -c Release", logPrefix: $"{branch} release", workDir: "runtime");
 
