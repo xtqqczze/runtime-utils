@@ -64,6 +64,7 @@ public class Job
             await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
             await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
             await LogAsync($"{nameof(CustomArguments)}={CustomArguments}");
+            await LogAsync($"{nameof(Environment.ProcessorCount)}={Environment.ProcessorCount}");
 
             await CloneRuntimeAndSetupToolsAsync();
 
