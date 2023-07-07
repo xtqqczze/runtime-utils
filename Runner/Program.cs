@@ -18,6 +18,7 @@ await job.RunJobAsync();
 
 public class Job
 {
+    private readonly Stopwatch _jobStartStopwatch = Stopwatch.StartNew();
     private readonly string _jobId;
     private readonly HttpClient _client;
     private readonly Channel<string> _channel;
@@ -160,16 +161,16 @@ public class Job
         {
             await RunProcessAsync("bash", "build.sh clr+libs -c Release", logPrefix: $"{branch} release", workDir: "runtime");
 
-            Task copyMainReleaseBitsTask = Task.Run(async () =>
+            Task copyReleaseBitsTask = Task.Run(async () =>
             {
-                await RunProcessAsync("cp", $"-r artifacts/bin/coreclr/linux.x64.Release/* ../artifacts-{branch}", logPrefix: $"{branch} release", workDir: "runtime");
-                await RunProcessAsync("cp", $"-r artifacts/bin/runtime/net8.0-linux-Release-x64/* ../artifacts-{branch}", logPrefix: $"{branch} release", workDir: "runtime");
+                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.x64.Release/. artifacts-{branch}", logPrefix: $"{branch} release");
+                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/runtime/net8.0-linux-Release-x64/. artifacts-{branch}", logPrefix: $"{branch} release");
             });
 
             await RunProcessAsync("bash", "build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
-            await RunProcessAsync("cp", $"-r artifacts/bin/coreclr/linux.x64.Checked/* ../clr-checked-{branch}", logPrefix: $"{branch} checked", workDir: "runtime");
+            await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.x64.Checked/. clr-checked-{branch}", logPrefix: $"{branch} checked");
 
-            await copyMainReleaseBitsTask;
+            await copyReleaseBitsTask;
         }
     }
 
@@ -233,7 +234,8 @@ public class Job
 
         try
         {
-            await _channel.Writer.WriteAsync($"[{DateTime.UtcNow:HH:mm:ss}] {message}", _jobTimeout);
+            TimeSpan elapsed = _jobStartStopwatch.Elapsed;
+            await _channel.Writer.WriteAsync($"[{elapsed:HH:mm:ss}] {message}", _jobTimeout);
         }
         catch { }
     }
