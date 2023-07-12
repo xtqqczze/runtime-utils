@@ -32,6 +32,8 @@ public class Job
 
     public static bool IsArm => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
+    private bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
+
     public Job(string jobId)
     {
         _jobId = jobId;
@@ -212,7 +214,7 @@ public class Job
 
     private async Task CollectFrameworksDiffsAsync()
     {
-        if (CustomArguments.Contains("remove-corelib-before-frameworks", StringComparison.OrdinalIgnoreCase))
+        if (TryGetFlag("remove-corelib-before-frameworks"))
         {
             // Avoid running diffs for corelib twice
             File.Delete("artifacts-main/System.Private.CoreLib.dll");
@@ -220,8 +222,8 @@ public class Job
         }
 
         bool runSequential =
-            CustomArguments.Contains("force-frameworks-sequential", StringComparison.OrdinalIgnoreCase) ? true :
-            CustomArguments.Contains("force-frameworks-parallel", StringComparison.OrdinalIgnoreCase) ? false :
+            TryGetFlag("force-frameworks-sequential") ? true :
+            TryGetFlag("force-frameworks-parallel") ? false :
             await GetSystemMemoryGBAsync() < 16;
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
@@ -338,8 +340,10 @@ public class Job
         string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
         string checkedClrFolder = baseline ? "clr-checked-main" : "clr-checked-pr";
 
+        bool useCctors = !TryGetFlag("nocctors");
+
         await RunProcessAsync("jitutils/bin/jit-diff",
-            $"diff {(sequential ? "--sequential" : "")} --cctors " +
+            $"diff {(sequential ? "--sequential" : "")} {(useCctors ? "--cctors" : "")} " +
             $"--output jit-diffs/{corelibOrFrameworks} --{corelibOrFrameworks} --pmi " +
             $"--core_root {artifactsFolder} " +
             $"--base {checkedClrFolder}");
@@ -459,18 +463,25 @@ public class Job
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
         {
-            foreach (string line in await File.ReadAllLinesAsync("/proc/meminfo", _jobTimeout))
+            try
             {
-                if (line.StartsWith("MemAvailable:", StringComparison.Ordinal))
+                foreach (string line in await File.ReadAllLinesAsync("/proc/meminfo", _jobTimeout))
                 {
-                    string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+                    if (line.StartsWith("MemAvailable:", StringComparison.Ordinal))
+                    {
+                        string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
 
-                    int gbAvailable = (int)(long.Parse(parts[1]) / 1024 / 1024);
+                        int gbAvailable = (int)(long.Parse(parts[1]) / 1024 / 1024);
 
-                    await LogAsync($"System memory available: {gbAvailable} GB");
+                        await LogAsync($"System memory available: {gbAvailable} GB");
 
-                    return gbAvailable;
+                        return gbAvailable;
+                    }
                 }
+            }
+            catch (Exception ex)
+            {
+                await LogAsync($"Failed to get available memory: {ex}");
             }
         }
 
