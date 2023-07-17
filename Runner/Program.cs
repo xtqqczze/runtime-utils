@@ -341,9 +341,16 @@ public class Job
         string checkedClrFolder = baseline ? "clr-checked-main" : "clr-checked-pr";
 
         bool useCctors = !TryGetFlag("nocctors");
+        bool useTier0 = TryGetFlag("tier0");
+
+        Console.WriteLine($"Using cctors: {useCctors}");
+        Console.WriteLine($"Using tier0: {useTier0}");
 
         await RunProcessAsync("jitutils/bin/jit-diff",
-            $"diff {(sequential ? "--sequential" : "")} {(useCctors ? "--cctors" : "")} " +
+            $"diff " +
+            (sequential ? "--sequential " : "") +
+            (useCctors ? "--cctors " : "") +
+            (useTier0 ? "--tier0 " : "") +
             $"--output jit-diffs/{corelibOrFrameworks} --{corelibOrFrameworks} --pmi " +
             $"--core_root {artifactsFolder} " +
             $"--base {checkedClrFolder}");
