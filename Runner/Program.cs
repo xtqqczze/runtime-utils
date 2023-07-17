@@ -343,8 +343,8 @@ public class Job
         bool useCctors = !TryGetFlag("nocctors");
         bool useTier0 = TryGetFlag("tier0");
 
-        Console.WriteLine($"Using cctors: {useCctors}");
-        Console.WriteLine($"Using tier0: {useTier0}");
+        await LogAsync($"Using cctors: {useCctors}");
+        await LogAsync($"Using tier0: {useTier0}");
 
         await RunProcessAsync("jitutils/bin/jit-diff",
             $"diff " +
