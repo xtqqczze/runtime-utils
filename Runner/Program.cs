@@ -370,7 +370,8 @@ public class Job
 
         await RunProcessAsync("jitutils/bin/jit-analyze",
             $"-b jit-diffs/{folder}/dasmset_1/base -d jit-diffs/{folder}/dasmset_2/base -r -c 100",
-            output);
+            output,
+            checkExitCode: false);
 
         return string.Join('\n', output);
     }
@@ -397,7 +398,12 @@ public class Job
             $"--base {checkedClrFolder}");
     }
 
-    private async Task RunProcessAsync(string fileName, string arguments, List<string>? output = null, string? logPrefix = null, string? workDir = null)
+    private async Task RunProcessAsync(
+        string fileName, string arguments,
+        List<string>? output = null,
+        string? logPrefix = null,
+        string? workDir = null,
+        bool checkExitCode = true)
     {
         if (logPrefix is not null)
         {
@@ -434,7 +440,7 @@ public class Job
                 }
             }));
 
-        if (process.ExitCode != 0)
+        if (checkExitCode && process.ExitCode != 0)
         {
             throw new Exception($"{fileName} {arguments} failed with exit code {process.ExitCode}");
         }
