@@ -78,6 +78,7 @@ public class Job
         try
         {
             _metadata = await GetFromJsonAsync<Dictionary<string, string>>("Metadata");
+            _metadata = new Dictionary<string, string>(_metadata, StringComparer.OrdinalIgnoreCase);
 
             await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
             await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
