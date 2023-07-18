@@ -30,6 +30,20 @@ public class Job
     public string SourceBranch => _metadata["PrBranch"];
     public string CustomArguments => _metadata["CustomArguments"];
 
+    public (string Repo, string Branch)[] GetPRList(string name)
+    {
+        if (_metadata.TryGetValue(name, out string? value))
+        {
+            return value.Split(',').Select(pr =>
+            {
+                string[] parts = pr.Split(';');
+                return (parts[0], parts[1]);
+            }).ToArray();
+        }
+
+        return Array.Empty<(string, string)>();
+    }
+
     public static bool IsArm => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
     private bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
@@ -105,12 +119,38 @@ public class Job
             string template = await File.ReadAllTextAsync("setup-runtime.sh.template");
             string script = template
                 .ReplaceLineEndings()
-                .Replace("{{SOURCE_REPOSITORY}}", SourceRepo)
-                .Replace("{{SOURCE_BRANCH}}", SourceBranch);
+                .Replace("{{MERGE_BASELINE_BRANCHES}}", GetMergeScript("dependsOn"))
+                .Replace("{{MERGE_PR_BRANCHES}}", GetMergeScript("combineWith"));
 
             await LogAsync($"Using runtime setup script:\n{script}");
             await File.WriteAllTextAsync("setup-runtime.sh", script);
             await RunProcessAsync("bash", "-x setup-runtime.sh", logPrefix: LogPrefix);
+
+            string GetMergeScript(string name)
+            {
+                int counter = 0;
+
+                List<(string Repo, string Branch)> prList = new(GetPRList(name));
+
+                if (name == "combineWith")
+                {
+                    prList.Insert(0, (SourceRepo, SourceBranch));
+                }
+
+                return string.Join('\n', prList
+                    .Select(pr =>
+                    {
+                        int index = ++counter;
+                        string remoteName = $"{name}{index}";
+
+                        return
+                            $"git remote add {remoteName} https://github.com/{pr.Repo}\n" +
+                            $"git fetch {remoteName} {pr.Branch}\n" +
+                            $"git log {remoteName}/{pr.Branch} -1\n" +
+                            $"git merge --no-edit {remoteName}/{pr.Branch}\n" +
+                            $"git log -1\n";
+                    }));
+            };
         });
 
         Task setupZipAndWgetTask = Task.Run(async () =>
@@ -392,6 +432,11 @@ public class Job
                     throw;
                 }
             }));
+
+        if (process.ExitCode != 0)
+        {
+            throw new Exception($"{fileName} {arguments} failed with exit code {process.ExitCode}");
+        }
 
         async Task ReadOutputStreamAsync(StreamReader reader)
         {

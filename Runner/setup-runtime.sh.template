@@ -2,16 +2,14 @@ git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime
 cd runtime
 git log -1
 chmod 777 build.sh
-
-git remote add other https://github.com/{{SOURCE_REPOSITORY}}
-git fetch other {{SOURCE_BRANCH}}
-git log other/{{SOURCE_BRANCH}} -1
-git switch -c pr
-git reset --hard origin/main
 git config --global user.email build@build.foo
 git config --global user.name build
-git merge --no-edit other/{{SOURCE_BRANCH}}
-git log -1
+
+{{MERGE_BASELINE_BRANCHES}}
+
+git switch -c pr
+
+{{MERGE_PR_BRANCHES}}
 
 git switch main
 
