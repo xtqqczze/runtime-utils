@@ -224,7 +224,18 @@ public class Job
             Task copyReleaseBitsTask = Task.Run(async () =>
             {
                 await RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.{arch}.Release/. artifacts-{branch}", logPrefix: $"{branch} release");
-                await RunProcessAsync("cp", $"-r runtime/artifacts/bin/runtime/net8.0-linux-Release-{arch}/. artifacts-{branch}", logPrefix: $"{branch} release");
+
+                const string BaseDirectory = "runtime/artifacts/bin/runtime";
+
+                string folder = Directory.GetDirectories(BaseDirectory)
+                    .Select(f => Path.GetRelativePath(BaseDirectory, f))
+                    .Where(f => f.StartsWith("net", StringComparison.OrdinalIgnoreCase))
+                    .Where(f => f.Contains("Release", StringComparison.OrdinalIgnoreCase))
+                    .Where(f => f.Contains("linux", StringComparison.OrdinalIgnoreCase))
+                    .Where(f => f.Contains(arch, StringComparison.OrdinalIgnoreCase))
+                    .Single();
+
+                await RunProcessAsync("cp", $"-r {BaseDirectory}/{folder}/. artifacts-{branch}", logPrefix: $"{branch} release");
             });
 
             await RunProcessAsync("bash", "build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
