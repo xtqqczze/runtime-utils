@@ -55,7 +55,8 @@ public class Job
         _client = new HttpClient
         {
             DefaultRequestVersion = HttpVersion.Version20,
-            BaseAddress = new Uri("https://mihubot.xyz/api/RuntimeUtils/Jobs/")
+            BaseAddress = new Uri("https://mihubot.xyz/api/RuntimeUtils/Jobs/"),
+            Timeout = TimeSpan.FromMinutes(5),
         };
 
         _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(100_000)
