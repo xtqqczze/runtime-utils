@@ -62,8 +62,7 @@ public class Job
         _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(100_000)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true,
-            SingleWriter = true
+            SingleReader = true
         });
     }
 
