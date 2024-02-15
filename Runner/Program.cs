@@ -594,7 +594,7 @@ public class Job
             }
 
             var cores = info.CpuList.First().CpuCoreList;
-            var totalCpuUsage = cores.Sum(c => (long)c.PercentProcessorTime) / 100;
+            var totalCpuUsage = cores.Sum(c => (double)c.PercentProcessorTime) / 100;
             var coreCount = cores.Count;
 
             var memory = info.MemoryStatus;
