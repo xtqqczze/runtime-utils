@@ -26,6 +26,9 @@ public class Job
     private CancellationToken _jobTimeout;
     private readonly Stopwatch _lastLogEntry = new();
     private Dictionary<string, string> _metadata = new();
+    private HardwareInfo? _hardwareInfo;
+
+    private volatile bool _completed;
 
     public string SourceRepo => _metadata["PrRepo"];
     public string SourceBranch => _metadata["PrBranch"];
@@ -63,6 +66,7 @@ public class Job
         _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(100_000)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
+            SingleReader = true,
         });
     }
 
@@ -102,16 +106,18 @@ public class Job
             await LogAsync(ex.ToString());
         }
 
+        _completed = true;
+
         try
         {
-            _channel.Writer.TryComplete();
-            await channelReaderTask.WaitAsync(_jobTimeout);
+            await systemUsageTask.WaitAsync(_jobTimeout);
         }
         catch { }
 
         try
         {
-            await systemUsageTask.WaitAsync(_jobTimeout);
+            _channel.Writer.TryComplete();
+            await channelReaderTask.WaitAsync(_jobTimeout);
         }
         catch { }
 
@@ -283,7 +289,7 @@ public class Job
         bool runSequential =
             TryGetFlag("force-frameworks-sequential") ? true :
             TryGetFlag("force-frameworks-parallel") ? false :
-            await GetSystemMemoryGBAsync() < 16;
+            GetTotalSystemMemoryGB() < 16;
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
         await JitDiffAsync(baseline: false, corelib: false, sequential: runSequential);
@@ -536,50 +542,35 @@ public class Job
         }
     }
 
-    private async Task<int> GetSystemMemoryGBAsync()
+    private int GetTotalSystemMemoryGB()
     {
-        if (RuntimeInformation.IsOSPlatform(OSPlatform.Linux))
+        var memory = _hardwareInfo?.MemoryStatus;
+
+        if (memory is null)
         {
-            try
-            {
-                foreach (string line in await File.ReadAllLinesAsync("/proc/meminfo", _jobTimeout))
-                {
-                    if (line.StartsWith("MemAvailable:", StringComparison.Ordinal))
-                    {
-                        string[] parts = line.Split(' ', StringSplitOptions.RemoveEmptyEntries);
-
-                        int gbAvailable = (int)(long.Parse(parts[1]) / 1024 / 1024);
-
-                        await LogAsync($"System memory available: {gbAvailable} GB");
-
-                        return gbAvailable;
-                    }
-                }
-            }
-            catch (Exception ex)
-            {
-                await LogAsync($"Failed to get available memory: {ex}");
-            }
+            return 1;
         }
 
-        return 1;
+        return (int)(memory.TotalPhysical / 1024 / 1024 / 1024);
     }
 
     private async Task StreamSystemHardwareInfoAsync()
     {
-        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(0.1));
+        Stopwatch stopwatch = Stopwatch.StartNew();
 
-        HardwareInfo info = new();
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(0.1));
 
         int failureMessages = 0;
 
-        while (!_channel.Reader.Completion.IsCompleted && await timer.WaitForNextTickAsync(_jobTimeout))
+        List<(TimeSpan Elapsed, double CpuUsage, double MemoryUsage)> usageHistory = new();
+
+        while (!_completed && await timer.WaitForNextTickAsync(_jobTimeout))
         {
             try
             {
-                info ??= new HardwareInfo();
-                info.RefreshMemoryStatus();
-                info.RefreshCPUList(includePercentProcessorTime: true);
+                _hardwareInfo ??= new HardwareInfo();
+                _hardwareInfo.RefreshMemoryStatus();
+                _hardwareInfo.RefreshCPUList(includePercentProcessorTime: true);
             }
             catch (Exception ex)
             {
@@ -593,14 +584,19 @@ public class Job
                 continue;
             }
 
-            var cores = info.CpuList.First().CpuCoreList;
+            var elapsed = stopwatch.Elapsed;
+            stopwatch.Restart();
+
+            var cores = _hardwareInfo.CpuList.First().CpuCoreList;
             var totalCpuUsage = cores.Sum(c => (double)c.PercentProcessorTime) / 100;
             var coreCount = cores.Count;
 
-            var memory = info.MemoryStatus;
+            var memory = _hardwareInfo.MemoryStatus;
             var availableGB = (double)memory.AvailablePhysical / 1024 / 1024 / 1024;
             var totalGB = (double)memory.TotalPhysical / 1024 / 1024 / 1024;
             var usedGB = totalGB - availableGB;
+
+            usageHistory.Add((elapsed, totalCpuUsage / coreCount, usedGB / totalGB));
 
             await PostAsJsonAsync("SystemInfo", new
             {
@@ -609,6 +605,18 @@ public class Job
                 MemoryUsageGB = usedGB,
                 MemoryAvailableGB = totalGB,
             });
+        }
+
+        if (failureMessages == 0 && usageHistory.Count > 0)
+        {
+            long durationTicks = usageHistory.Sum(h => h.Elapsed.Ticks);
+            double averageCpuUsage = usageHistory.Sum(h => h.CpuUsage * h.Elapsed.Ticks) / durationTicks;
+            double averageMemoryUsage = usageHistory.Sum(h => h.MemoryUsage * h.Elapsed.Ticks) / durationTicks;
+            averageCpuUsage *= 100;
+            averageMemoryUsage *= 100;
+
+            await LogAsync($"Average overall CPU usage estimate: {(int)averageCpuUsage} %");
+            await LogAsync($"Average overall memory usage estimate: {(int)averageMemoryUsage} %");
         }
     }
 }
