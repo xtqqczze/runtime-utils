@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using Hardware.Info;
+using System.Diagnostics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
@@ -62,7 +63,6 @@ public class Job
         _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(100_000)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
-            SingleReader = true
         });
     }
 
@@ -74,6 +74,7 @@ public class Job
         _jobTimeout = jobCts.Token;
 
         Task channelReaderTask = Task.Run(() => ReadChannelAsync());
+        Task systemUsageTask = Task.Run(() => StreamSystemHardwareInfoAsync());
 
         try
         {
@@ -105,6 +106,12 @@ public class Job
         {
             _channel.Writer.TryComplete();
             await channelReaderTask.WaitAsync(_jobTimeout);
+        }
+        catch { }
+
+        try
+        {
+            await systemUsageTask.WaitAsync(_jobTimeout);
         }
         catch { }
 
@@ -556,5 +563,52 @@ public class Job
         }
 
         return 1;
+    }
+
+    private async Task StreamSystemHardwareInfoAsync()
+    {
+        using var timer = new PeriodicTimer(TimeSpan.FromSeconds(0.1));
+
+        HardwareInfo info = new();
+
+        int failureMessages = 0;
+
+        while (!_channel.Reader.Completion.IsCompleted && await timer.WaitForNextTickAsync(_jobTimeout))
+        {
+            try
+            {
+                info ??= new HardwareInfo();
+                info.RefreshMemoryStatus();
+                info.RefreshCPUList(includePercentProcessorTime: true);
+            }
+            catch (Exception ex)
+            {
+                failureMessages++;
+                if (failureMessages <= 10)
+                {
+                    await LogAsync($"Failed to obtain hardware info: {ex}");
+                }
+
+                await Task.Delay(5_000, _jobTimeout);
+                continue;
+            }
+
+            var cores = info.CpuList.First().CpuCoreList;
+            var totalCpuUsage = cores.Sum(c => (long)c.PercentProcessorTime) / 100;
+            var coreCount = cores.Count;
+
+            var memory = info.MemoryStatus;
+            var availableGB = (double)memory.AvailablePhysical / 1024 / 1024 / 1024;
+            var totalGB = (double)memory.TotalPhysical / 1024 / 1024 / 1024;
+            var usedGB = totalGB - availableGB;
+
+            await PostAsJsonAsync("SystemInfo", new
+            {
+                CpuUsage = totalCpuUsage,
+                CpuCoresAvailable = coreCount,
+                MemoryUsageGB = usedGB,
+                MemoryAvailableGB = totalGB,
+            });
+        }
     }
 }

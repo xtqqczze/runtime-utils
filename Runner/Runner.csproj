@@ -8,6 +8,10 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="Hardware.Info" Version="100.0.1.1" />
+  </ItemGroup>
+
+  <ItemGroup>
     <None Update="setup-runtime.sh.template">
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </None>
