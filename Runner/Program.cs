@@ -289,7 +289,7 @@ public class Job
         bool runSequential =
             TryGetFlag("force-frameworks-sequential") ? true :
             TryGetFlag("force-frameworks-parallel") ? false :
-            GetTotalSystemMemoryGB() < 12;
+            GetTotalSystemMemoryGB() < 16;
 
         await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
         await JitDiffAsync(baseline: false, corelib: false, sequential: runSequential);
