@@ -96,8 +96,6 @@ public class Job
 
             await InstallRuntimeDotnetSdkAsync();
 
-            await CollectCorelibDiffsAsync();
-
             await CollectFrameworksDiffsAsync();
         }
         catch (Exception ex)
@@ -200,7 +198,6 @@ public class Job
             Directory.CreateDirectory("clr-checked-main");
             Directory.CreateDirectory("clr-checked-pr");
             Directory.CreateDirectory("jit-diffs");
-            Directory.CreateDirectory("jit-diffs/corelib");
             Directory.CreateDirectory("jit-diffs/frameworks");
         });
 
@@ -264,35 +261,15 @@ public class Job
         await RunProcessAsync("bash", "dotnet-install.sh --jsonfile runtime/global.json --install-dir /usr/lib/dotnet");
     }
 
-    private async Task CollectCorelibDiffsAsync()
-    {
-        await JitDiffAsync(baseline: true, corelib: true);
-        await JitDiffAsync(baseline: false, corelib: true);
-
-        Task uploadCorelibDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-corelib", "jit-diffs/corelib");
-
-        string coreLibDiff = await JitAnalyzeAsync("corelib");
-        await UploadArtifactAsync("diff-corelib.txt", coreLibDiff);
-
-        await uploadCorelibDiffsTask;
-    }
-
     private async Task CollectFrameworksDiffsAsync()
     {
-        if (TryGetFlag("remove-corelib-before-frameworks"))
-        {
-            // Avoid running diffs for corelib twice
-            File.Delete("artifacts-main/System.Private.CoreLib.dll");
-            File.Delete("artifacts-pr/System.Private.CoreLib.dll");
-        }
-
         bool runSequential =
             TryGetFlag("force-frameworks-sequential") ? true :
             TryGetFlag("force-frameworks-parallel") ? false :
             GetTotalSystemMemoryGB() < 16;
 
-        await JitDiffAsync(baseline: true, corelib: false, sequential: runSequential);
-        await JitDiffAsync(baseline: false, corelib: false, sequential: runSequential);
+        await JitDiffAsync(baseline: true, sequential: runSequential);
+        await JitDiffAsync(baseline: false, sequential: runSequential);
 
         Task uploadFrameworksDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
@@ -400,9 +377,8 @@ public class Job
         return string.Join('\n', output);
     }
 
-    private async Task JitDiffAsync(bool baseline, bool corelib, bool sequential = false)
+    private async Task JitDiffAsync(bool baseline, bool sequential = false)
     {
-        string corelibOrFrameworks = corelib ? "corelib" : "frameworks";
         string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
         string checkedClrFolder = baseline ? "clr-checked-main" : "clr-checked-pr";
 
@@ -417,7 +393,7 @@ public class Job
             (sequential ? "--sequential " : "") +
             (useCctors ? "--cctors " : "") +
             (useTier0 ? "--tier0 " : "") +
-            $"--output jit-diffs/{corelibOrFrameworks} --{corelibOrFrameworks} --pmi " +
+            $"--output jit-diffs/frameworks --frameworks --pmi " +
             $"--core_root {artifactsFolder} " +
             $"--base {checkedClrFolder}");
     }
