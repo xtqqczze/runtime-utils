@@ -273,7 +273,7 @@ public class Job
 
         Task uploadFrameworksDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
-        string frameworksDiff = await JitAnalyzeAsync("frameworks");
+        string frameworksDiff = await JitAnalyzeAsync();
         await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
         await uploadFrameworksDiffsTask;
@@ -365,12 +365,12 @@ public class Job
         await heartbeatTask.WaitAsync(_jobTimeout);
     }
 
-    private async Task<string> JitAnalyzeAsync(string folder)
+    private async Task<string> JitAnalyzeAsync()
     {
         List<string> output = new();
 
         await RunProcessAsync("jitutils/bin/jit-analyze",
-            $"-b jit-diffs/{folder}/dasmset_1/base -d jit-diffs/{folder}/dasmset_2/base -r -c 100",
+            "-b jit-diffs/frameworks/dasmset_1/base -d jit-diffs/frameworks/dasmset_2/base -r -c 100",
             output,
             checkExitCode: false);
 
