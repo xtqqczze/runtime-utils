@@ -159,51 +159,25 @@ public sealed class Job
 
     private async Task ChangeWorkingDirectoryToLargestDiskAsync()
     {
-        Volume? volume = null;
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+
+        const string NewWorkDir = "/mnt/runner";
 
         try
         {
-            var info = new HardwareInfo();
-            info.RefreshDriveList();
-
-            volume = info.DriveList
-                .SelectMany(d => d.PartitionList)
-                .SelectMany(p => p.VolumeList)
-                .MaxBy(v => v.FreeSpace);
+            Directory.CreateDirectory(NewWorkDir);
+            Environment.CurrentDirectory = NewWorkDir;
         }
         catch (Exception ex)
         {
-            await LogAsync($"Failed to find the largest disk: {ex}");
+            await LogAsync($"Failed to apply new working directory ({NewWorkDir}): {ex}");
             return;
         }
 
-        if (volume is null)
-        {
-            await LogAsync("No volumes found?");
-            return;
-        }
-
-        await LogAsync($"Largest volume: {volume.Name} ({volume.FileSystem} {volume.Description}) with {volume.FreeSpace / 1024 / 1024 / 1024} GB");
-
-        if (volume.Name == "/")
-        {
-            await LogAsync("Largest volume is root - skipping");
-            return;
-        }
-
-        string newWorkDir = Path.Combine(volume.Name, "runner");
-        try
-        {
-            Directory.CreateDirectory(newWorkDir);
-            Environment.CurrentDirectory = newWorkDir;
-        }
-        catch (Exception ex)
-        {
-            await LogAsync($"Failed to apply new working directory ({newWorkDir}): {ex}");
-            return;
-        }
-
-        await LogAsync($"Changed working directory to {newWorkDir}");
+        await LogAsync($"Changed working directory to {NewWorkDir}");
     }
 
     private async Task CloneRuntimeAndSetupToolsAsync()
