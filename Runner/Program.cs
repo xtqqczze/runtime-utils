@@ -119,6 +119,9 @@ public sealed class Job
             await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
             await LogAsync($"{nameof(CustomArguments)}={CustomArguments}");
             await LogAsync($"{nameof(Environment.ProcessorCount)}={Environment.ProcessorCount}");
+            await LogAsync($"{nameof(Environment.CurrentDirectory)}={Environment.CurrentDirectory}");
+            await LogAsync($"{nameof(RuntimeInformation.FrameworkDescription)}={RuntimeInformation.FrameworkDescription}");
+            await LogAsync($"{nameof(RuntimeInformation.RuntimeIdentifier)}={RuntimeInformation.RuntimeIdentifier}");
 
             await CloneRuntimeAndSetupToolsAsync();
 
@@ -606,6 +609,11 @@ public sealed class Job
             var usedGB = totalGB - availableGB;
 
             usageHistory.Add((elapsed, totalCpuUsage / coreCount, usedGB / totalGB));
+
+            if (usageHistory.Count == 1)
+            {
+                await LogAsync($"First hardware info: CpuCoresAvailable={coreCount} MemoryAvailableGB={totalGB}");
+            }
 
             await PostAsJsonAsync("SystemInfo", new
             {
