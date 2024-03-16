@@ -210,7 +210,7 @@ public sealed class Job
             await setupZipAndWgetTask;
 
             string repo = GetArgument("jitutils-repo", "MihaZupan/jitutils");
-            string branch = GetArgument("jitutils-branch", "main");
+            string branch = GetArgument("jitutils-branch", "parallel-tasks");
 
             await RunProcessAsync("git", $"clone --no-tags --single-branch -b {branch} --progress https://github.com/{repo}.git", logPrefix: LogPrefix);
 
@@ -302,7 +302,7 @@ public sealed class Job
         bool runSequential =
             TryGetFlag("force-frameworks-sequential") ? true :
             TryGetFlag("force-frameworks-parallel") ? false :
-            GetTotalSystemMemoryGB() < 16;
+            GetTotalSystemMemoryGB() < 12;
 
         await JitDiffAsync(baseline: true, sequential: runSequential);
         await JitDiffAsync(baseline: false, sequential: runSequential);
