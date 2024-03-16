@@ -20,6 +20,7 @@ await job.RunJobAsync();
 
 public sealed class Job
 {
+    private readonly string _originalWorkingDirectory = Environment.CurrentDirectory;
     private readonly Stopwatch _jobStartStopwatch = Stopwatch.StartNew();
     private readonly string _jobId;
     private readonly HttpClient _client;
@@ -186,7 +187,7 @@ public sealed class Job
         {
             const string LogPrefix = "Setup runtime";
 
-            string template = await File.ReadAllTextAsync("setup-runtime.sh.template");
+            string template = await File.ReadAllTextAsync(Path.Combine(_originalWorkingDirectory, "setup-runtime.sh.template"));
             string script = template
                 .ReplaceLineEndings()
                 .Replace("{{MERGE_BASELINE_BRANCHES}}", GetMergeScript("dependsOn"))
