@@ -1,5 +1,6 @@
 ﻿using Hardware.Info;
 using System.Diagnostics;
+using System.Diagnostics.CodeAnalysis;
 using System.Net;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
@@ -17,7 +18,7 @@ if (jobId is null)
 var job = new Job(jobId);
 await job.RunJobAsync();
 
-public class Job
+public sealed class Job
 {
     private readonly Stopwatch _jobStartStopwatch = Stopwatch.StartNew();
     private readonly string _jobId;
@@ -51,6 +52,35 @@ public class Job
     public static bool IsArm => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
     private bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
+
+    private string GetArgument(string argument, string @default)
+    {
+        return TryGetArgument(argument, out string? value)
+            ? value
+            : @default;
+    }
+
+    private bool TryGetArgument(string argument, [NotNullWhen(true)] out string? value)
+    {
+        value = null;
+
+        ReadOnlySpan<char> arguments = CustomArguments;
+        argument = $"-{argument} ";
+
+        int offset = arguments.IndexOf(argument, StringComparison.OrdinalIgnoreCase);
+        if (offset < 0) return false;
+
+        arguments = arguments.Slice(offset + argument.Length);
+
+        int length = arguments.IndexOf(' ');
+        if (length >= 0)
+        {
+            arguments = arguments.Slice(0, length);
+        }
+
+        value = arguments.Trim().ToString();
+        return value.Length > 0;
+    }
 
     public Job(string jobId)
     {
@@ -176,7 +206,10 @@ public class Job
             const string LogPrefix = "Setup jitutils";
             await setupZipAndWgetTask;
 
-            await RunProcessAsync("git", "clone --no-tags --single-branch --progress https://github.com/dotnet/jitutils.git", logPrefix: LogPrefix);
+            string repo = GetArgument("jitutils-repo", "MihaZupan/jitutils");
+            string branch = GetArgument("jitutils-branch", "main");
+
+            await RunProcessAsync("git", $"clone --no-tags --single-branch -b {branch} --progress https://github.com/{repo}.git", logPrefix: LogPrefix);
 
             if (IsArm)
             {
