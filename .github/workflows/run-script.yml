@@ -13,6 +13,6 @@ jobs:
         shell: pwsh
         run: |
           $scriptId = ('${{ github.event.issue.body }}' -split '-')[2]
-          Invoke-WebRequest -Uri "https://mihubot.xyz/api/RuntimeUtils/RunScript/?id=$scriptId&token=${{ secrets.GITHUB_TOKEN }}" | Invoke-Expression
+          Invoke-WebRequest -Uri "https://mihubot.xyz/api/RunScript/?id=$scriptId&token=${{ secrets.GITHUB_TOKEN }}" | Invoke-Expression
 
 
