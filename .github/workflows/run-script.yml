@@ -1,0 +1,18 @@
+name: Run MihuBot script
+
+on:
+  issues:
+    types: [opened]
+
+jobs:
+  run-windows:
+    if: (github.actor == 'MihuBot' || github.actor == 'MihaZupan') && startsWith(github.event.issue.body, 'run-win-')
+    runs-on: windows-latest
+    steps:
+      - name: Run script
+        shell: pwsh
+        run: |
+          $scriptId = ('${{ github.event.issue.body }}' -split '-')[2]
+          Invoke-WebRequest -Uri "https://mihubot.xyz/api/RuntimeUtils/RunScript/?id=$scriptId&token=${{ secrets.GITHUB_TOKEN }}" | Invoke-Expression
+
+
