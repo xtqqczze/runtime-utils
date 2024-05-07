@@ -12,7 +12,9 @@ jobs:
       - name: Run script
         shell: pwsh
         run: |
+          $githubActionUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}'
+          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/json" https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --data "{`"body`":`"$githubActionUrl`""
           $scriptId = ('${{ github.event.issue.body }}' -split '-')[2]
-          Invoke-WebRequest -Uri "https://mihubot.xyz/api/RunScript/?id=$scriptId&token=${{ secrets.GITHUB_TOKEN }}" | Invoke-Expression
+          Invoke-WebRequest -Uri "https://mihubot.xyz/api/RunScript/?id=$scriptId" | Invoke-Expression
 
 
