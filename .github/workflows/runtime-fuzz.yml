@@ -1,0 +1,42 @@
+name: Fuzz .NET Libraries
+
+on:
+  issues:
+    types: [opened, reopened]
+
+env:
+  config: ${{ fromJson(github.event.issue.body) }}
+
+jobs:
+  build:
+    if: github.actor == 'MihaZupan' || github.actor == 'MihuBot'
+    runs-on: windows-latest
+    steps:
+      - name: Parse Issue Body
+        uses: peter-murray/issue-body-parser-action@v67942e1e50c46767b9302401dce7e00c4204046e
+        id: issue_body_parser
+        with:
+            github_token: ${{ secrets.GITHUB_TOKEN }}
+            issue_id: ${{ github.event.issue.number }}
+            fail_on_missing: false
+
+      - name: Checkout runtime repo
+        uses: actions/checkout@v4
+        with:
+          repository: dotnet/runtime
+          fetch-depth: 0
+          path: runtime
+          show-progress: true
+
+      - name: Checkout PR branch
+        shell: cmd
+        run: |
+          cd runtime
+          git fetch --progress origin pull/${{ env.config.prNumber }}/head:pr
+          git checkout pr
+      
+      - name: Build runtime
+        run: |
+          cd runtime
+          git rev-parse HEAD
+          ./build.cmd clr+libs+packs+host -rc Checked -c Debug
