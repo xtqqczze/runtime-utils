@@ -109,7 +109,7 @@ public abstract class JobBase
         }
         catch { }
 
-        await _client.GetStringAsync($"Complete/{_jobId}", CancellationToken.None);
+        ///await _client.GetStringAsync($"Complete/{_jobId}", CancellationToken.None);
     }
 
     protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
@@ -183,6 +183,7 @@ public abstract class JobBase
                 List<string> messages = new();
                 while (reader.TryRead(out var message))
                 {
+                    Console.WriteLine(message);
                     messages.Add(message);
                 }
 
@@ -286,26 +287,27 @@ public abstract class JobBase
 
         await LogAsync($"Uploading '{name}'");
 
-        await using FileStream fs = File.OpenRead(path);
-        using StreamContent content = new(fs);
+        //await using FileStream fs = File.OpenRead(path);
+        //using StreamContent content = new(fs);
 
-        using var response = await _client.PostAsync(
-            $"Artifact/{_jobId}/{Uri.EscapeDataString(name)}",
-            content,
-            JobTimeout);
+        //using var response = await _client.PostAsync(
+        //    $"Artifact/{_jobId}/{Uri.EscapeDataString(name)}",
+        //    content,
+        //    JobTimeout);
     }
 
     private async Task PostAsJsonAsync(string path, object? value)
     {
-        try
-        {
-            using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, JobTimeout);
-        }
-        catch (Exception ex)
-        {
-            await LogAsync($"Failed to post resource '{path}': {ex}");
-            throw;
-        }
+        await Task.Yield();
+        //try
+        //{
+        //    using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, JobTimeout);
+        //}
+        //catch (Exception ex)
+        //{
+        //    await LogAsync($"Failed to post resource '{path}': {ex}");
+        //    throw;
+        //}
     }
 
     protected int GetTotalSystemMemoryGB()
