@@ -177,16 +177,17 @@ public abstract class JobBase
         try
         {
             ChannelReader<string> reader = _channel.Reader;
+            List<string> messages = new();
 
             while (await reader.WaitToReadAsync(JobTimeout))
             {
-                List<string> messages = new();
                 while (reader.TryRead(out var message))
                 {
                     messages.Add(message);
                 }
 
-                await PostAsJsonAsync("Logs", messages.ToArray());
+                await PostAsJsonAsync("Logs", messages);
+                messages.Clear();
             }
         }
         catch (Exception ex)

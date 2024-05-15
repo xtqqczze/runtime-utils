@@ -1,14 +1,35 @@
 ﻿using Runner;
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 
 string? jobId = Environment.GetEnvironmentVariable("JOB_ID");
 
-Console.WriteLine($"{nameof(jobId)}={jobId}");
-
-if (jobId is null)
+if (string.IsNullOrEmpty(jobId))
 {
-    return;
+    if (args.Length == 1 &&
+        args[0] is string eventPath &&
+        File.Exists(eventPath))
+    {
+        JsonDocument document = JsonDocument.Parse(File.ReadAllText(eventPath));
+        string? body = document.RootElement.GetProperty("issue").GetProperty("body").GetString();
+
+        if (body is not null)
+        {
+            // <!-- RUN_AS_GITHUB_ACTION_{ExternalId} -->
+            const string Prefix = "RUN_AS_GITHUB_ACTION_";
+
+            int offset = body.IndexOf(Prefix, StringComparison.Ordinal) + Prefix.Length;
+            int endOfId = body.IndexOf(' ', offset);
+
+            jobId = body.Substring(offset, endOfId - offset);
+        }
+    }
+
+    if (string.IsNullOrEmpty(jobId))
+    {
+        return;
+    }
 }
 
 var client = new HttpClient
@@ -18,7 +39,16 @@ var client = new HttpClient
     Timeout = TimeSpan.FromMinutes(5),
 };
 
-var metadata = await client.GetFromJsonAsync<Dictionary<string, string>>($"Metadata/{jobId}") ?? throw new Exception("Null response");
+var request = new HttpRequestMessage(HttpMethod.Get, $"Metadata/{jobId}");
+
+if (Environment.GetEnvironmentVariable("RUNTIME_UTILS_TOKEN") is { Length: > 0 } authToken)
+{
+    request.Headers.Add("X-Runtime-Utils-Token", authToken);
+}
+
+using var response = await client.SendAsync(request);
+
+var metadata = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>() ?? throw new Exception("Null response");
 metadata = new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
 
 JobBase job = metadata["JobType"] switch

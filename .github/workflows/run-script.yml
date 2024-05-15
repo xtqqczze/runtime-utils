@@ -6,15 +6,21 @@ on:
 
 jobs:
   run-windows:
-    if: (github.actor == 'MihuBot' || github.actor == 'MihaZupan') && startsWith(github.event.issue.body, 'run-win-')
+    if: (github.actor == 'MihuBot' || github.actor == 'MihaZupan') && contains(github.event.issue.body, 'RUN_AS_GITHUB_ACTION_')
     runs-on: windows-latest
     steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+
+      - name: Setup .NET 6.0
+        uses: actions/setup-dotnet@v1
+        with:
+          dotnet-version: '6.0'
+
       - name: Run script
         shell: pwsh
+        env:
+          RUNTIME_UTILS_TOKEN: ${{ secrets.RUNTIME_UTILS_TOKEN }}
         run: |
-          $githubActionUrl = '${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}/job/${{ github.job }}'
-          curl -X POST -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" -H "Content-Type: application/json" https://api.github.com/repos/${{ github.repository }}/issues/${{ github.event.issue.number }}/comments --data "{`"body`":`"$githubActionUrl`""
-          $scriptId = ('${{ github.event.issue.body }}' -split '-')[2]
-          Invoke-WebRequest -Uri "https://mihubot.xyz/api/RunScript/?id=$scriptId" | Invoke-Expression
-
-
+          cd runtime-utils/Runner
+          dotnet run -c Release "${{ github.event_path }}"
