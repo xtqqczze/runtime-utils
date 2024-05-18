@@ -106,8 +106,8 @@ internal sealed class JitDiffJob : JobBase
             const string LogPrefix = "Setup jitutils";
             await setupZipAndWgetTask;
 
-            string repo = GetArgument("jitutils-repo", "MihaZupan/jitutils");
-            string branch = GetArgument("jitutils-branch", "parallel-tasks");
+            string repo = GetArgument("jitutils-repo", "dotnet/jitutils");
+            string branch = GetArgument("jitutils-branch", "main");
 
             await RunProcessAsync("git", $"clone --no-tags --single-branch -b {branch} --progress https://github.com/{repo}.git", logPrefix: LogPrefix);
 
