@@ -52,12 +52,12 @@ internal sealed class FuzzLibrariesJob : JobBase
             git log pr/{{SourceBranch}} -1
             git merge --no-edit pr/{{SourceBranch}}
 
-            call ./build.cmd clr+libs+packs+host -rc Checked -c Debug
+            call .\build.cmd clr+libs+packs+host -rc Checked -c Debug
 
-            cd src/libraries/Fuzzing/DotnetFuzzing
-            ../../../../.dotnet/dotnet publish -o publish
-            ../../../../.dotnet/dotnet tool install --tool-path . SharpFuzz.CommandLine
-            publish/DotnetFuzzing.exe prepare-onefuzz deployment
+            cd src\libraries\Fuzzing\DotnetFuzzing
+            ..\..\..\..\.dotnet\dotnet publish -o publish
+            ..\..\..\..\.dotnet\dotnet tool install --tool-path . SharpFuzz.CommandLine
+            publish\DotnetFuzzing.exe prepare-onefuzz deployment
             """);
 
         await RunProcessAsync(ScriptName, string.Empty);
