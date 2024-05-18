@@ -93,7 +93,7 @@ public abstract class JobBase
         catch (Exception ex)
         {
             Console.WriteLine($"Something went wrong: {ex}");
-            await LogAsync(ex.ToString());
+            await ErrorAsync(ex.ToString());
         }
 
         _completed = true;
@@ -143,9 +143,9 @@ public abstract class JobBase
     {
         try
         {
-            _channel.Writer.TryComplete(new Exception(message));
+            await LogAsync($"ERROR: {message}");
 
-            await PostAsJsonAsync("Logs", new[] { $"ERROR: {message}" });
+            _channel.Writer.TryComplete(new Exception(message));
         }
         catch { }
     }
