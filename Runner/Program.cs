@@ -15,6 +15,7 @@ catch (Exception ex)
 
 static async Task RunAsync(string[] args)
 {
+    Console.WriteLine("Starting ...");
     string? jobId = Environment.GetEnvironmentVariable("JOB_ID");
 
     if (string.IsNullOrEmpty(jobId))
@@ -63,7 +64,11 @@ static async Task RunAsync(string[] args)
     var metadata = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>() ?? throw new Exception("Null response");
     metadata = new Dictionary<string, string>(metadata, StringComparer.OrdinalIgnoreCase);
 
-    JobBase job = metadata["JobType"] switch
+    string jobType = metadata["JobType"];
+
+    Console.WriteLine($"Obtained the job metadata. Job type: {jobType}");
+
+    JobBase job = jobType switch
     {
         nameof(JitDiffJob) => new JitDiffJob(client, metadata),
         nameof(FuzzLibrariesJob) => new FuzzLibrariesJob(client, metadata),

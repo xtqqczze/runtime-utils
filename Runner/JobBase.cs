@@ -86,6 +86,8 @@ public abstract class JobBase
             await LogAsync($"{nameof(RuntimeInformation.FrameworkDescription)}={RuntimeInformation.FrameworkDescription}");
             await LogAsync($"{nameof(RuntimeInformation.RuntimeIdentifier)}={RuntimeInformation.RuntimeIdentifier}");
 
+            Console.WriteLine($"Starting {Metadata["JobType"]} ({Metadata["ExternalId"]}) ...");
+
             await RunJobCoreAsync();
         }
         catch (Exception ex)
