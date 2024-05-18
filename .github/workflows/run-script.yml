@@ -9,11 +9,10 @@ jobs:
     if: (github.actor == 'MihuBot' || github.actor == 'MihaZupan') && contains(github.event.issue.body, 'RUN_AS_GITHUB_ACTION_')
     runs-on: windows-latest
     steps:
-      - name: Checkout
-        uses: actions/checkout@v2
+      - uses: actions/checkout@v4
 
       - name: Setup .NET 6.0
-        uses: actions/setup-dotnet@v1
+        uses: actions/setup-dotnet@v4
         with:
           dotnet-version: '6.0'
 
@@ -22,5 +21,5 @@ jobs:
         env:
           RUNTIME_UTILS_TOKEN: ${{ secrets.RUNTIME_UTILS_TOKEN }}
         run: |
-          cd runtime-utils/Runner
+          cd Runner
           dotnet run -c Release "${{ github.event_path }}"
