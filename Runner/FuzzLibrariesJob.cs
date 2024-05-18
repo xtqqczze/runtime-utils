@@ -73,10 +73,21 @@ internal sealed class FuzzLibrariesJob : JobBase
 
         await LogAsync($"Available fuzzers: {string.Join(", ", availableFuzzers)}");
 
-        if (!availableFuzzers.Contains(fuzzerName, StringComparer.OrdinalIgnoreCase))
+        var matchingFuzzers = availableFuzzers
+            .Where(f => f.Contains(fuzzerName, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+
+        if (matchingFuzzers.Length == 0)
         {
             throw new Exception($"Fuzzer '{fuzzerName}' not found. Available fuzzers: {string.Join(", ", availableFuzzers)}");
         }
+
+        if (matchingFuzzers.Length > 1)
+        {
+            throw new Exception($"'{fuzzerName}' matches multiple fuzzers: {string.Join(", ", matchingFuzzers)}");
+        }
+
+        fuzzerName = matchingFuzzers[0];
 
         string fuzzerDirectory = $"{DeploymentPath}/{fuzzerName}";
 
