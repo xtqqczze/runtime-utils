@@ -52,7 +52,7 @@ internal sealed class FuzzLibrariesJob : JobBase
             git log pr/{{SourceBranch}} -1
             git merge --no-edit pr/{{SourceBranch}}
 
-            ./build.cmd clr+libs+packs+host -rc Checked -c Debug
+            call ./build.cmd clr+libs+packs+host -rc Checked -c Debug
 
             cd src/libraries/Fuzzing/DotnetFuzzing
             ../../../../.dotnet/dotnet publish -o publish
