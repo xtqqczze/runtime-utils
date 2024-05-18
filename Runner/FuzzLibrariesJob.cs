@@ -41,6 +41,7 @@ internal sealed class FuzzLibrariesJob : JobBase
 
         File.WriteAllText(ScriptName,
             $$"""
+            git config --system core.longpaths true
             git clone --progress https://github.com/dotnet/runtime runtime
             cd runtime
             git log -1
