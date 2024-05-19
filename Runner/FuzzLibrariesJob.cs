@@ -135,15 +135,6 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
                     if (stack.Length > 0 && Interlocked.Exchange(ref failureStackUploaded, 1) == 0)
                     {
-                        const int MaxLines = 60;
-
-                        if (stack.Length > MaxLines)
-                        {
-                            string truncatedMessage = $"... Skipped {stack.Length - MaxLines} lines ...";
-                            string marker = new('=', truncatedMessage.Length);
-                            stack = [ ..stack.Take(MaxLines / 2), "", marker, truncatedMessage, marker, "", ..stack.TakeLast(MaxLines / 2) ];
-                        }
-
                         await UploadTextArtifactAsync("stack.txt", string.Join('\n', stack));
                         await UploadArtifactAsync(artifactPath, $"{fuzzerName}-input.bin");
                     }
