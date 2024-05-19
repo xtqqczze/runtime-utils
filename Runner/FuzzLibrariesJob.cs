@@ -121,7 +121,9 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             {
                 await LogAsync($"Fuzzer {i} failed: {ex.Message}");
 
-                if (ex is not OperationCanceledException && !failureCts.IsCancellationRequested)
+                if (ex is not OperationCanceledException &&
+                    !failureCts.IsCancellationRequested &&
+                    File.Exists(artifactPath))
                 {
                     string[] stack = output
                         .AsEnumerable()
@@ -131,11 +133,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
                         .Reverse()
                         .ToArray();
 
-                    if (stack.Length > 1 &&
-                        stack.Any(s => s.Contains("at DotnetFuzzing.Fuzzers", StringComparison.OrdinalIgnoreCase)) &&
-                        stack.Any(s => s.Contains("ERROR", StringComparison.OrdinalIgnoreCase)) &&
-                        File.Exists(artifactPath) &&
-                        Interlocked.Exchange(ref failureStackUploaded, 1) == 0)
+                    if (stack.Length > 0 && Interlocked.Exchange(ref failureStackUploaded, 1) == 0)
                     {
                         const int MaxLines = 60;
 
