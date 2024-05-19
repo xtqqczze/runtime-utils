@@ -268,7 +268,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task UploadArtifactAsync(string fileName, string contents)
+    protected async Task UploadTextArtifactAsync(string fileName, string contents)
     {
         string filePath = Path.Combine(Path.GetTempPath(), fileName);
         try
@@ -283,9 +283,9 @@ public abstract class JobBase
         }
     }
 
-    protected async Task UploadArtifactAsync(string path)
+    protected async Task UploadArtifactAsync(string path, string? fileName = null)
     {
-        string name = Path.GetFileName(path);
+        string name = fileName ?? Path.GetFileName(path);
 
         await LogAsync($"Uploading '{name}'");
 

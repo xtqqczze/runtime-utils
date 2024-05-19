@@ -221,7 +221,7 @@ internal sealed class JitDiffJob : JobBase
         Task uploadFrameworksDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
 
         string frameworksDiff = await JitAnalyzeAsync();
-        await UploadArtifactAsync("diff-frameworks.txt", frameworksDiff);
+        await UploadTextArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
         await uploadFrameworksDiffsTask;
     }

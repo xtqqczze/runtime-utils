@@ -102,36 +102,49 @@ internal sealed class FuzzLibrariesJob : JobBase
 
         using CancellationTokenSource failureCts = new();
 
-        Task fuzzersTask = Parallel.ForEachAsync(Enumerable.Range(1, parallelism), async (i, _) =>
+        int failureStackUploaded = 0;
+
+        await Parallel.ForEachAsync(Enumerable.Range(1, parallelism), async (i, _) =>
         {
+            List<string> output = new();
+            string number = i.ToString().PadLeft(parallelism.ToString().Length, '0');
+            string artifactPath = $"{ArtifactPathPrefix}{number}";
+
             try
             {
                 await RunProcessAsync(
                     $"{fuzzerDirectory}/local-run.bat",
-                    $"-timeout=60 -max_total_time=3600 {InputsDirectory} -exact_artifact_path={ArtifactPathPrefix}{i} -print_final_stats=1",
-                    logPrefix: $"Fuzzer {i}",
+                    $"-timeout=60 -max_total_time=3600 {InputsDirectory} -exact_artifact_path={artifactPath} -print_final_stats=1",
+                    output,
+                    $"Fuzzer {number}",
                     cancellationToken: failureCts.Token);
             }
             catch (Exception ex)
             {
                 await LogAsync($"Fuzzer {i} failed: {ex.Message}");
+
+                if (ex is not OperationCanceledException && !failureCts.IsCancellationRequested)
+                {
+                    string[] stack = output
+                        .AsEnumerable()
+                        .Reverse()
+                        .TakeWhile(line => !(line.Contains("cov: ", StringComparison.Ordinal) && line.Contains("exec/s: ", StringComparison.Ordinal)))
+                        .Reverse()
+                        .ToArray();
+
+                    if (stack.Length is > 1 and < 100 &&
+                        stack.Any(s => s.Contains("at DotnetFuzzing.Fuzzers", StringComparison.OrdinalIgnoreCase)) &&
+                        stack.Any(s => s.Contains("ERROR", StringComparison.OrdinalIgnoreCase)) &&
+                        File.Exists(artifactPath) &&
+                        Interlocked.Exchange(ref failureStackUploaded, 1) == 0)
+                    {
+                        await UploadTextArtifactAsync("stack.txt", string.Join('\n', stack));
+                        await UploadArtifactAsync(artifactPath, $"{fuzzerName}-input.bin");
+                    }
+                }
+
                 failureCts.Cancel();
             }
         });
-
-        try
-        {
-            await fuzzersTask;
-        }
-        catch when (!JobTimeout.IsCancellationRequested) { }
-
-        string[] artifacts = Directory.GetFiles(Environment.CurrentDirectory)
-            .Where(d => Path.GetFileName(d).StartsWith(ArtifactPathPrefix))
-            .ToArray();
-
-        foreach (string artifact in artifacts)
-        {
-            await UploadArtifactAsync(artifact);
-        }
     }
 }
