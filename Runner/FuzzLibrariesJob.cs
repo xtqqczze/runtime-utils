@@ -94,7 +94,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         const string ArtifactPathPrefix = "fuzz-artifact-";
 
-        int parallelism = Math.Max(1, Environment.ProcessorCount / 2);
+        int parallelism = Environment.ProcessorCount;
 
         await LogAsync($"Starting {parallelism} parallel fuzzer instances");
 
