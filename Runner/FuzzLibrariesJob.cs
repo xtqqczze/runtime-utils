@@ -146,5 +146,10 @@ internal sealed class FuzzLibrariesJob : JobBase
                 failureCts.Cancel();
             }
         });
+
+        if (Directory.EnumerateFiles(InputsDirectory).Any())
+        {
+            await ZipAndUploadArtifactAsync("inputs", InputsDirectory);
+        }
     }
 }
