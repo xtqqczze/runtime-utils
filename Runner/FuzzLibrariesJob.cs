@@ -2,10 +2,8 @@
 
 namespace Runner;
 
-internal sealed class FuzzLibrariesJob : JobBase
+internal sealed partial class FuzzLibrariesJob : JobBase
 {
-    private static readonly Regex _fuzzMatchRegex = new("^fuzz ?([a-z]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline);
-
     private string SourceRepo => Metadata["PrRepo"];
     private string SourceBranch => Metadata["PrBranch"];
 
@@ -18,7 +16,7 @@ internal sealed class FuzzLibrariesJob : JobBase
             throw new Exception("This job is only supported on Windows");
         }
 
-        Match match = _fuzzMatchRegex.Match(CustomArguments);
+        Match match = FuzzerNameRegex().Match(CustomArguments);
         if (!match.Success)
         {
             throw new Exception("Invalid arguments. Expected 'fuzz <fuzzer name>'");
@@ -152,4 +150,7 @@ internal sealed class FuzzLibrariesJob : JobBase
             await ZipAndUploadArtifactAsync("inputs", InputsDirectory);
         }
     }
+
+    [GeneratedRegex("^fuzz ?([a-z]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex FuzzerNameRegex();
 }
