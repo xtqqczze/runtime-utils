@@ -127,6 +127,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
                         .AsEnumerable()
                         .Reverse()
                         .TakeWhile(line => !(line.Contains("cov: ", StringComparison.Ordinal) && line.Contains("exec/s: ", StringComparison.Ordinal)))
+                        .SkipWhile(line => string.IsNullOrWhiteSpace(line) || line.StartsWith("stat::", StringComparison.Ordinal))
                         .Reverse()
                         .ToArray();
 
