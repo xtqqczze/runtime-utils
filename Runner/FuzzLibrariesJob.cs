@@ -98,11 +98,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         foreach (string fuzzerName in matchingFuzzers)
         {
-            if (!await RunFuzzerAsync(fuzzerName, durationSeconds))
-            {
-                await LogAsync($"{fuzzerName} failed. Skipping any other fuzzers");
-                break;
-            }
+            await RunFuzzerAsync(fuzzerName, durationSeconds);
         }
     }
 
@@ -160,7 +156,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
                     if (stack.Length > 0 && Interlocked.Exchange(ref failureStackUploaded, 1) == 0)
                     {
-                        await UploadTextArtifactAsync("stack.txt", string.Join('\n', stack));
+                        await UploadTextArtifactAsync($"{fuzzerName}-stack.txt", string.Join('\n', stack));
                         await UploadArtifactAsync(artifactPath, $"{fuzzerName}-input.bin");
                     }
                 }
