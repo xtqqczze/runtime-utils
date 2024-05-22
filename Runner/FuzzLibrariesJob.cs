@@ -24,7 +24,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             throw new Exception("Invalid arguments. Expected 'fuzz <fuzzer name>'");
         }
 
-        string fuzzerNamePattern = match.Groups[1].Value;
+        string fuzzerNamePattern = match.Groups[1].Value.Trim();
         if (string.IsNullOrEmpty(fuzzerNamePattern))
         {
             throw new Exception("Invalid fuzzer name. Expected something like 'fuzz HttpHeaders'");
@@ -173,6 +173,6 @@ internal sealed partial class FuzzLibrariesJob : JobBase
         return failureStackUploaded == 0;
     }
 
-    [GeneratedRegex(@"^fuzz ?([a-z\d]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"^fuzz (.+)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FuzzerNameRegex();
 }
