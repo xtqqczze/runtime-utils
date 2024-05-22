@@ -4,6 +4,8 @@ namespace Runner;
 
 internal sealed partial class FuzzLibrariesJob : JobBase
 {
+    private const string DeploymentPath = "runtime/src/libraries/Fuzzing/DotnetFuzzing/deployment";
+
     private string SourceRepo => Metadata["PrRepo"];
     private string SourceBranch => Metadata["PrBranch"];
 
@@ -22,15 +24,15 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             throw new Exception("Invalid arguments. Expected 'fuzz <fuzzer name>'");
         }
 
-        string fuzzerName = match.Groups[1].Value;
-        if (fuzzerName.Length < 7)
+        string fuzzerNamePattern = match.Groups[1].Value;
+        if (string.IsNullOrEmpty(fuzzerNamePattern))
         {
-            throw new Exception("Invalid fuzzer name. Expected something like 'fuzz HttpHeadersFuzzer'");
+            throw new Exception("Invalid fuzzer name. Expected something like 'fuzz HttpHeaders'");
         }
 
         await CloneRuntimeAndPrepareFuzzerAsync();
 
-        await RunFuzzerAsync(fuzzerName);
+        await RunFuzzersAsync(fuzzerNamePattern);
     }
 
     private async Task CloneRuntimeAndPrepareFuzzerAsync()
@@ -61,10 +63,8 @@ internal sealed partial class FuzzLibrariesJob : JobBase
         await RunProcessAsync(ScriptName, string.Empty);
     }
 
-    private async Task RunFuzzerAsync(string fuzzerName)
+    private async Task RunFuzzersAsync(string fuzzerNamePattern)
     {
-        const string DeploymentPath = "runtime/src/libraries/Fuzzing/DotnetFuzzing/deployment";
-
         string[] availableFuzzers = Directory.GetDirectories(DeploymentPath)
             .Select(Path.GetFileName)
             .ToArray()!;
@@ -72,27 +72,52 @@ internal sealed partial class FuzzLibrariesJob : JobBase
         await LogAsync($"Available fuzzers: {string.Join(", ", availableFuzzers)}");
 
         var matchingFuzzers = availableFuzzers
-            .Where(f => f.Contains(fuzzerName, StringComparison.OrdinalIgnoreCase))
+            .Where(f => f.Contains(fuzzerNamePattern, StringComparison.OrdinalIgnoreCase))
             .ToArray();
 
         if (matchingFuzzers.Length == 0)
         {
-            throw new Exception($"Fuzzer '{fuzzerName}' not found. Available fuzzers: {string.Join(", ", availableFuzzers)}");
+            try
+            {
+                var pattern = new Regex(fuzzerNamePattern, RegexOptions.IgnoreCase | RegexOptions.Singleline);
+                matchingFuzzers = availableFuzzers
+                    .Where(f => pattern.IsMatch(f))
+                    .ToArray();
+            }
+            catch { }
         }
 
-        if (matchingFuzzers.Length > 1)
+        if (matchingFuzzers.Length == 0)
         {
-            throw new Exception($"'{fuzzerName}' matches multiple fuzzers: {string.Join(", ", matchingFuzzers)}");
+            throw new Exception($"Fuzzer '{fuzzerNamePattern}' not found. Available fuzzers: {string.Join(", ", availableFuzzers)}");
         }
 
-        fuzzerName = matchingFuzzers[0];
+        await LogAsync($"Matched: {string.Join(", ", matchingFuzzers)}");
+
+        int durationSeconds = Math.Min(3600, 4 * 3600 / matchingFuzzers.Length);
+
+        foreach (string fuzzerName in matchingFuzzers)
+        {
+            if (!await RunFuzzerAsync(fuzzerName, durationSeconds))
+            {
+                await LogAsync($"{fuzzerName} failed. Skipping any other fuzzers");
+                break;
+            }
+        }
+    }
+
+    private async Task<bool> RunFuzzerAsync(string fuzzerName, int durationSeconds)
+    {
+        string nameWithoutFuzzerSuffix = fuzzerName.EndsWith("Fuzzer", StringComparison.OrdinalIgnoreCase)
+            ? fuzzerName.Substring(0, fuzzerName.Length - "Fuzzer".Length)
+            : fuzzerName;
 
         string fuzzerDirectory = $"{DeploymentPath}/{fuzzerName}";
+        string inputsDirectory = $"{fuzzerName}-inputs";
 
-        const string InputsDirectory = "Inputs";
-        Directory.CreateDirectory(InputsDirectory);
+        Directory.CreateDirectory(inputsDirectory);
 
-        const string ArtifactPathPrefix = "fuzz-artifact-";
+        string artifactPathPrefix = $"{fuzzerName}-artifact-";
 
         int parallelism = Environment.ProcessorCount;
 
@@ -104,17 +129,17 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         await Parallel.ForEachAsync(Enumerable.Range(1, parallelism), async (i, _) =>
         {
-            List<string> output = new();
+            List<string> output = [];
             string number = i.ToString().PadLeft(parallelism.ToString().Length, '0');
-            string artifactPath = $"{ArtifactPathPrefix}{number}";
+            string artifactPath = $"{artifactPathPrefix}{number}";
 
             try
             {
                 await RunProcessAsync(
                     $"{fuzzerDirectory}/local-run.bat",
-                    $"-timeout=60 -max_total_time=3600 {InputsDirectory} -exact_artifact_path={artifactPath} -print_final_stats=1",
+                    $"-timeout=60 -max_total_time={durationSeconds} {inputsDirectory} -exact_artifact_path={artifactPath} -print_final_stats=1",
                     output,
-                    $"Fuzzer {number}",
+                    $"{nameWithoutFuzzerSuffix} {number}",
                     cancellationToken: failureCts.Token);
             }
             catch (Exception ex)
@@ -144,10 +169,12 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             }
         });
 
-        if (Directory.EnumerateFiles(InputsDirectory).Any())
+        if (Directory.EnumerateFiles(inputsDirectory).Any())
         {
-            await ZipAndUploadArtifactAsync("inputs", InputsDirectory);
+            await ZipAndUploadArtifactAsync($"{fuzzerName}-inputs", inputsDirectory);
         }
+
+        return failureStackUploaded == 0;
     }
 
     [GeneratedRegex("^fuzz ?([a-z]*)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
