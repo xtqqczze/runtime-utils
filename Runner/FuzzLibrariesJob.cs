@@ -94,10 +94,16 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         await LogAsync($"Matched: {string.Join(", ", matchingFuzzers)}");
 
-        int durationSeconds = Math.Min(3600, 4 * 3600 / matchingFuzzers.Length);
-
-        foreach (string fuzzerName in matchingFuzzers)
+        for (int i = 0; i < matchingFuzzers.Length; i++)
         {
+            string fuzzerName = matchingFuzzers[i];
+
+            int remainingFuzzers = matchingFuzzers.Length - i;
+            TimeSpan remainingTime = MaxJobDuration - JobStopwatch.Elapsed - TimeSpan.FromMinutes(15);
+            int durationSeconds = (int)(remainingTime / remainingFuzzers).TotalSeconds;
+
+            ArgumentOutOfRangeException.ThrowIfLessThan(durationSeconds, 60);
+
             await RunFuzzerAsync(fuzzerName, durationSeconds);
         }
     }

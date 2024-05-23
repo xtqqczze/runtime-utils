@@ -4,12 +4,14 @@ using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
+using System.IO.Compression;
 
 namespace Runner;
 
 public abstract class JobBase
 {
-    private readonly Stopwatch _jobStartStopwatch = Stopwatch.StartNew();
+    protected static readonly TimeSpan MaxJobDuration = TimeSpan.FromHours(5);
+
     private readonly string _jobId;
     private readonly HttpClient _client;
     private readonly Channel<string> _channel;
@@ -17,6 +19,7 @@ public abstract class JobBase
     private HardwareInfo? _hardwareInfo;
     private volatile bool _completed;
 
+    protected readonly Stopwatch JobStopwatch = Stopwatch.StartNew();
     protected CancellationToken JobTimeout { get; private set; }
     protected Dictionary<string, string> Metadata { get; }
 
@@ -72,7 +75,7 @@ public abstract class JobBase
     {
         _lastLogEntry.Start();
 
-        using var jobCts = new CancellationTokenSource(TimeSpan.FromHours(5));
+        using var jobCts = new CancellationTokenSource(MaxJobDuration);
         JobTimeout = jobCts.Token;
 
         Task channelReaderTask = Task.Run(() => ReadChannelAsync());
@@ -117,7 +120,25 @@ public abstract class JobBase
     protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
     {
         zipFileName = $"{zipFileName}.zip";
-        await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}", logPrefix: zipFileName);
+
+        if (OperatingSystem.IsWindows())
+        {
+            await LogAsync($"[{zipFileName}] Compressing {folderPath}");
+            try
+            {
+                ZipFile.CreateFromDirectory(folderPath, zipFileName, CompressionLevel.Optimal, includeBaseDirectory: false);
+            }
+            catch (Exception ex)
+            {
+                await LogAsync($"[{zipFileName}] Failed to zip {folderPath}: {ex}");
+                return;
+            }
+        }
+        else
+        {
+            await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}", logPrefix: zipFileName);
+        }
+
         await UploadArtifactAsync(zipFileName);
     }
 
@@ -130,7 +151,7 @@ public abstract class JobBase
 
         try
         {
-            TimeSpan elapsed = _jobStartStopwatch.Elapsed;
+            TimeSpan elapsed = JobStopwatch.Elapsed;
             int hours = elapsed.Hours;
             int minutes = elapsed.Minutes;
             int seconds = elapsed.Seconds;
