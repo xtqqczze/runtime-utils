@@ -84,6 +84,8 @@ public abstract class JobBase
         Task channelReaderTask = Task.Run(() => ReadChannelAsync());
         Task systemUsageTask = Task.Run(() => StreamSystemHardwareInfoAsync());
 
+        _ = channelReaderTask.ContinueWith(_ => jobCts.Cancel());
+
         try
         {
             await LogAsync($"{nameof(CustomArguments)}={CustomArguments}");
@@ -167,9 +169,14 @@ public abstract class JobBase
     {
         try
         {
-            await LogAsync($"ERROR: {message}");
-
-            _channel.Writer.TryComplete(new Exception(message));
+            try
+            {
+                await PostAsJsonAsync("Logs", new string[] { $"ERROR: {message}" });
+            }
+            finally
+            {
+                _channel.Writer.TryComplete(new Exception(message));
+            }
         }
         catch { }
     }
@@ -224,11 +231,14 @@ public abstract class JobBase
         }
         catch (Exception ex)
         {
-            await ErrorAsync(ex.ToString());
+            Console.WriteLine($"Logger failure: {ex}");
+            throw;
         }
-
-        Volatile.Write(ref completed, true);
-        await heartbeatTask.WaitAsync(JobTimeout);
+        finally
+        {
+            Volatile.Write(ref completed, true);
+            await heartbeatTask.WaitAsync(JobTimeout);
+        }
     }
 
     protected async Task RunProcessAsync(
