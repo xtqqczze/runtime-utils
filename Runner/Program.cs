@@ -45,11 +45,16 @@ static async Task RunAsync(string[] args)
         }
     }
 
-    var client = new HttpClient
+    var client = new HttpClient(new SocketsHttpHandler
+    {
+        KeepAlivePingDelay = TimeSpan.FromSeconds(5),
+        KeepAlivePingPolicy = HttpKeepAlivePingPolicy.Always,
+        KeepAlivePingTimeout = TimeSpan.FromSeconds(15),
+    })
     {
         DefaultRequestVersion = HttpVersion.Version20,
         BaseAddress = new Uri("https://mihubot.xyz/api/RuntimeUtils/Jobs/"),
-        Timeout = TimeSpan.FromMinutes(5),
+        Timeout = TimeSpan.FromMinutes(1),
     };
 
     var request = new HttpRequestMessage(HttpMethod.Get, $"Metadata/{jobId}");

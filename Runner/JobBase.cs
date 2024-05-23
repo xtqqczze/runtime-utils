@@ -344,8 +344,9 @@ public abstract class JobBase
             JobTimeout);
     }
 
-    private async Task PostAsJsonAsync(string path, object? value, int attemptsRemaining = 2)
+    private async Task PostAsJsonAsync(string path, object? value, int attemptsRemaining = 4)
     {
+        int delayMs = 1_000;
         while (true)
         {
             try
@@ -363,7 +364,8 @@ public abstract class JobBase
                     throw;
                 }
 
-                await Task.Delay(1_000, JobTimeout);
+                await Task.Delay(delayMs, JobTimeout);
+                delayMs *= 2;
             }
         }
     }
