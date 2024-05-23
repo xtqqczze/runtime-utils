@@ -179,6 +179,6 @@ internal sealed partial class FuzzLibrariesJob : JobBase
         return failureStackUploaded == 0;
     }
 
-    [GeneratedRegex(@"^fuzz (.+)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"^fuzz ([^ ]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FuzzerNameRegex();
 }
