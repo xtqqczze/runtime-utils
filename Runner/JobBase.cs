@@ -189,16 +189,27 @@ public abstract class JobBase
         {
             try
             {
+                TimeSpan lastElapsed = TimeSpan.Zero;
+
                 while (!Volatile.Read(ref completed))
                 {
                     await Task.Delay(100, JobTimeout);
 
+                    TimeSpan elapsed;
                     lock (_lastLogEntry)
                     {
-                        if (_lastLogEntry.Elapsed.TotalSeconds < 2 * 60)
-                        {
-                            continue;
-                        }
+                        elapsed = _lastLogEntry.Elapsed;
+                    }
+
+                    if (elapsed.TotalSeconds > 30 && elapsed > lastElapsed + TimeSpan.FromSeconds(30))
+                    {
+                        Console.WriteLine($"Idle for {elapsed.TotalSeconds} seconds");
+                        lastElapsed = elapsed;
+                    }
+
+                    if (elapsed.TotalSeconds < 2 * 60)
+                    {
+                        continue;
                     }
 
                     await LogAsync("Heartbeat - I'm still here");
