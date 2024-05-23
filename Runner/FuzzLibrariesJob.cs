@@ -129,6 +129,8 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             {
                 var content = (await remoteInputsZipBlob.DownloadContentAsync(JobTimeout)).Value;
                 ZipFile.ExtractToDirectory(content.Content.ToStream(), inputsDirectory);
+
+                await LogAsync($"Downloaded {Directory.EnumerateFiles(inputsDirectory).Count()} inputs from previous fuzzing runs");
             }
         }
         catch (Exception ex)
