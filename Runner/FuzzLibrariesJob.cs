@@ -1,4 +1,5 @@
-﻿using System.Text.RegularExpressions;
+﻿using System.IO.Compression;
+using System.Text.RegularExpressions;
 
 namespace Runner;
 
@@ -101,6 +102,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             int remainingFuzzers = matchingFuzzers.Length - i;
             TimeSpan remainingTime = MaxJobDuration - JobStopwatch.Elapsed - TimeSpan.FromMinutes(15);
             int durationSeconds = (int)(remainingTime / remainingFuzzers).TotalSeconds;
+            durationSeconds = Math.Min(3600, durationSeconds);
 
             ArgumentOutOfRangeException.ThrowIfLessThan(durationSeconds, 60);
 
@@ -116,17 +118,28 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         string fuzzerDirectory = $"{DeploymentPath}/{fuzzerName}";
         string inputsDirectory = $"{fuzzerName}-inputs";
+        string artifactPathPrefix = $"{fuzzerName}-artifact-";
 
         Directory.CreateDirectory(inputsDirectory);
 
-        string artifactPathPrefix = $"{fuzzerName}-artifact-";
+        try
+        {
+            var remoteInputsZipBlob = PersistentStateClient.GetBlobClient($"{inputsDirectory}.zip");
+            if (await remoteInputsZipBlob.ExistsAsync(JobTimeout))
+            {
+                var content = (await remoteInputsZipBlob.DownloadContentAsync(JobTimeout)).Value;
+                ZipFile.ExtractToDirectory(content.Content.ToStream(), inputsDirectory);
+            }
+        }
+        catch (Exception ex)
+        {
+            await LogAsync($"Failed to download previous inputs archive: {ex}");
+        }
 
         int parallelism = Environment.ProcessorCount;
-
         await LogAsync($"Starting {parallelism} parallel fuzzer instances");
 
         using CancellationTokenSource failureCts = new();
-
         int failureStackUploaded = 0;
 
         await Parallel.ForEachAsync(Enumerable.Range(1, parallelism), async (i, _) =>
@@ -173,7 +186,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         if (Directory.EnumerateFiles(inputsDirectory).Any())
         {
-            await ZipAndUploadArtifactAsync($"{fuzzerName}-inputs", inputsDirectory);
+            await ZipAndUploadArtifactAsync(inputsDirectory, inputsDirectory);
         }
 
         return failureStackUploaded == 0;

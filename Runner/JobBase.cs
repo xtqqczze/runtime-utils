@@ -5,6 +5,7 @@ using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.IO.Compression;
+using Azure.Storage.Blobs;
 
 namespace Runner;
 
@@ -55,6 +56,8 @@ public abstract class JobBase
         value = arguments.Trim().ToString();
         return value.Length > 0;
     }
+
+    protected BlobContainerClient PersistentStateClient => new(new Uri(Metadata["PersistentStateSasUri"]));
 
     public JobBase(HttpClient client, Dictionary<string, string> metadata)
     {
@@ -199,6 +202,12 @@ public abstract class JobBase
 
         try
         {
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
+        }
+        catch { }
+
+        try
+        {
             ChannelReader<string> reader = _channel.Reader;
             List<string> messages = new();
 
@@ -250,6 +259,12 @@ public abstract class JobBase
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(JobTimeout, cancellationToken);
 
         process.Start();
+
+        try
+        {
+            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+        }
+        catch { }
 
         await Task.WhenAll(
             Task.Run(() => ReadOutputStreamAsync(process.StandardOutput)),
@@ -319,16 +334,27 @@ public abstract class JobBase
             JobTimeout);
     }
 
-    private async Task PostAsJsonAsync(string path, object? value)
+    private async Task PostAsJsonAsync(string path, object? value, int attemptsRemaining = 2)
     {
-        try
+        while (true)
         {
-            using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, JobTimeout);
-        }
-        catch (Exception ex)
-        {
-            await LogAsync($"Failed to post resource '{path}': {ex}");
-            throw;
+            try
+            {
+                using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, JobTimeout);
+                response.EnsureSuccessStatusCode();
+                return;
+            }
+            catch (Exception ex) when (!JobTimeout.IsCancellationRequested)
+            {
+                await LogAsync($"Failed to post resource '{path}': {ex}");
+
+                if (--attemptsRemaining == 0)
+                {
+                    throw;
+                }
+
+                await Task.Delay(1_000, JobTimeout);
+            }
         }
     }
 
