@@ -176,7 +176,7 @@ internal sealed class JitDiffJob : JobBase
         {
             string arch = IsArm ? "arm64" : "x64";
 
-            await RunProcessAsync("bash", "build.sh clr+libs -c Release -p:RunAnalyzers=false", logPrefix: $"{branch} release", workDir: "runtime");
+            await RunProcessAsync("bash", "build.sh clr+libs -c Release -p:RunAnalyzers=false -p:ApiCompatValidateAssemblies=false", logPrefix: $"{branch} release", workDir: "runtime");
 
             Task copyReleaseBitsTask = Task.Run(async () =>
             {

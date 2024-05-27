@@ -53,7 +53,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             git log pr/{{SourceBranch}} -1
             git merge --no-edit pr/{{SourceBranch}}
 
-            call .\build.cmd clr+libs+packs+host -rc Checked -c Debug /p:RunAnalyzers=false
+            call .\build.cmd clr+libs+packs+host -rc Checked -c Debug /p:RunAnalyzers=false /p:ApiCompatValidateAssemblies=false
 
             cd src\libraries\Fuzzing\DotnetFuzzing
             ..\..\..\..\.dotnet\dotnet publish -o publish
