@@ -138,7 +138,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             await LogAsync($"Failed to download previous inputs archive: {ex}");
         }
 
-        int parallelism = Environment.ProcessorCount;
+        int parallelism = Math.Max(1, Environment.ProcessorCount - 1);
         await LogAsync($"Starting {parallelism} parallel fuzzer instances");
 
         using CancellationTokenSource failureCts = new();
