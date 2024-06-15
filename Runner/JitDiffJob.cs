@@ -167,6 +167,8 @@ internal sealed class JitDiffJob : JobBase
             Directory.CreateDirectory("clr-checked-pr");
             Directory.CreateDirectory("jit-diffs");
             Directory.CreateDirectory("jit-diffs/frameworks");
+            Directory.CreateDirectory("jit-diffs/frameworks/main");
+            Directory.CreateDirectory("jit-diffs/frameworks/pr");
         });
 
         await createDirectoriesTask;
@@ -266,7 +268,7 @@ internal sealed class JitDiffJob : JobBase
         List<string> output = new();
 
         await RunProcessAsync("jitutils/bin/jit-analyze",
-            "-b jit-diffs/frameworks/dasmset_1/base -d jit-diffs/frameworks/dasmset_2/base -r -c 100",
+            "-b jit-diffs/frameworks/main/dasmset_1/base -d jit-diffs/frameworks/pr/dasmset_1/base -r -c 100",
             output,
             logPrefix: "jit-analyze",
             checkExitCode: false);
@@ -290,7 +292,7 @@ internal sealed class JitDiffJob : JobBase
             (sequential ? "--sequential " : "") +
             (useCctors ? "--cctors " : "") +
             (useTier0 ? "--tier0 " : "") +
-            $"--output jit-diffs/frameworks --frameworks --pmi " +
+            $"--output jit-diffs/frameworks/{(baseline ? "main" : "pr")} --frameworks --pmi " +
             $"--core_root {artifactsFolder} " +
             $"--base {checkedClrFolder}",
             logPrefix: $"jit-diff {(baseline ? "main" : "pr")}");
