@@ -393,6 +393,24 @@ public abstract class JobBase
         return (int)(memory.TotalPhysical / 1024 / 1024 / 1024);
     }
 
+    protected async ValueTask<int> GetTotalSystemMemoryGBAsync(TimeSpan timeout)
+    {
+        Stopwatch s = Stopwatch.StartNew();
+
+        do
+        {
+            if (_hardwareInfo is not null)
+            {
+                return GetTotalSystemMemoryGB();
+            }
+
+            await Task.Delay(10);
+        }
+        while (s.Elapsed < timeout);
+
+        return 1;
+    }
+
     private async Task StreamSystemHardwareInfoAsync()
     {
         Stopwatch stopwatch = Stopwatch.StartNew();

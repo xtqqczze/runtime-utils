@@ -36,20 +36,48 @@ internal sealed class JitDiffJob : JobBase
             return;
         }
 
-        const string NewWorkDir = "/mnt/runner";
+        int availableRamGB = await GetTotalSystemMemoryGBAsync(TimeSpan.FromSeconds(5));
 
-        try
+        if (availableRamGB > 60)
         {
+            if (await TryApplyAsync(async () =>
+            {
+                const string NewWorkDir = "/ramdisk";
+                const string LogPrefix = "Prepare RAM disk";
+
+                int ramDiskSize = Math.Min(128, availableRamGB / 4 * 3);
+                await RunProcessAsync("mkdir", NewWorkDir, logPrefix: LogPrefix);
+                await RunProcessAsync("mount", $"-t tmpfs -o size={ramDiskSize}G tmpfs {NewWorkDir}", logPrefix: LogPrefix);
+                return NewWorkDir;
+            }))
+            {
+                return;
+            }
+        }
+
+        await TryApplyAsync(() =>
+        {
+            const string NewWorkDir = "/mnt/runner";
             Directory.CreateDirectory(NewWorkDir);
-            Environment.CurrentDirectory = NewWorkDir;
-        }
-        catch (Exception ex)
-        {
-            await LogAsync($"Failed to apply new working directory ({NewWorkDir}): {ex}");
-            return;
-        }
+            return Task.FromResult(NewWorkDir);
+        });
 
-        await LogAsync($"Changed working directory to {NewWorkDir}");
+        async Task<bool> TryApplyAsync(Func<Task<string>> action)
+        {
+            try
+            {
+                string newDirectory = await action();
+                Environment.CurrentDirectory = newDirectory;
+
+                await LogAsync($"Changed working directory to {newDirectory}");
+                return true;
+            }
+            catch (Exception ex)
+            {
+                await LogAsync($"Failed to apply new working directory: {ex}");
+                return false;
+            }
+        }
     }
 
     private async Task CloneRuntimeAndSetupToolsAsync()
