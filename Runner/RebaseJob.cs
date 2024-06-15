@@ -25,7 +25,7 @@ internal sealed class RebaseJob : JobBase
             git fetch pr {{SourceBranch}}
             git checkout {{SourceBranch}}
             git log -1
-            git rebase main --no-edit
+            git rebase main
             git push pr -f
             """);
 
