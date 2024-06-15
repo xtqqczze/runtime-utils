@@ -425,9 +425,10 @@ public abstract class JobBase
         {
             try
             {
-                _hardwareInfo ??= new HardwareInfo();
-                _hardwareInfo.RefreshMemoryStatus();
-                _hardwareInfo.RefreshCPUList(includePercentProcessorTime: true);
+                var info = _hardwareInfo ?? new HardwareInfo();
+                info.RefreshMemoryStatus();
+                info.RefreshCPUList(includePercentProcessorTime: true);
+                _hardwareInfo = info;
             }
             catch (Exception ex)
             {
