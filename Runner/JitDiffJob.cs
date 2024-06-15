@@ -1,4 +1,5 @@
-﻿using System.Runtime.InteropServices;
+﻿using System.Collections.Concurrent;
+using System.Runtime.InteropServices;
 
 namespace Runner;
 
@@ -7,6 +8,7 @@ internal sealed class JitDiffJob : JobBase
     private static bool IsArm => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
 
     private readonly string _originalWorkingDirectory = Environment.CurrentDirectory;
+    private readonly ConcurrentQueue<Task> _pendingTasks = new();
 
     private string SourceRepo => Metadata["PrRepo"];
     private string SourceBranch => Metadata["PrBranch"];
@@ -18,7 +20,7 @@ internal sealed class JitDiffJob : JobBase
         await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
         await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
 
-        await ChangeWorkingDirectoryToLargestDiskAsync();
+        await ChangeWorkingDirectoryToRamDiskAsync();
 
         await CloneRuntimeAndSetupToolsAsync();
 
@@ -27,9 +29,14 @@ internal sealed class JitDiffJob : JobBase
         await InstallRuntimeDotnetSdkAsync();
 
         await CollectFrameworksDiffsAsync();
+
+        while (_pendingTasks.TryDequeue(out Task? task))
+        {
+            await task;
+        }
     }
 
-    private async Task ChangeWorkingDirectoryToLargestDiskAsync()
+    private async Task ChangeWorkingDirectoryToRamDiskAsync()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
@@ -55,12 +62,12 @@ internal sealed class JitDiffJob : JobBase
             }
         }
 
-        await TryApplyAsync(() =>
-        {
-            const string NewWorkDir = "/mnt/runner";
-            Directory.CreateDirectory(NewWorkDir);
-            return Task.FromResult(NewWorkDir);
-        });
+        //await TryApplyAsync(() =>
+        //{
+        //    const string NewWorkDir = "/mnt/runner";
+        //    Directory.CreateDirectory(NewWorkDir);
+        //    return Task.FromResult(NewWorkDir);
+        //});
 
         async Task<bool> TryApplyAsync(Func<Task<string>> action)
         {
@@ -185,14 +192,14 @@ internal sealed class JitDiffJob : JobBase
     private async Task BuildRuntimeAsync()
     {
         await BuildAndCopyRuntimeBranchBitsAsync("main");
-        Task uploadMainBitsTask = ZipAndUploadRuntimeBitsAsync("main");
+
+        _pendingTasks.Enqueue(ZipAndUploadRuntimeBitsAsync("main"));
 
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
         await BuildAndCopyRuntimeBranchBitsAsync("pr");
-        await ZipAndUploadRuntimeBitsAsync("pr");
 
-        await uploadMainBitsTask;
+        _pendingTasks.Enqueue(ZipAndUploadRuntimeBitsAsync("pr"));
 
         async Task ZipAndUploadRuntimeBitsAsync(string branch)
         {
@@ -243,15 +250,15 @@ internal sealed class JitDiffJob : JobBase
             TryGetFlag("force-frameworks-parallel") ? false :
             GetTotalSystemMemoryGB() < 12;
 
-        await JitDiffAsync(baseline: true, sequential: runSequential);
+        Task baselineTask = JitDiffAsync(baseline: true, sequential: runSequential);
         await JitDiffAsync(baseline: false, sequential: runSequential);
+        await baselineTask;
 
-        Task uploadFrameworksDiffsTask = ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks");
+        _pendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks"));
 
         string frameworksDiff = await JitAnalyzeAsync();
-        await UploadTextArtifactAsync("diff-frameworks.txt", frameworksDiff);
 
-        await uploadFrameworksDiffsTask;
+        _pendingTasks.Enqueue(UploadTextArtifactAsync("diff-frameworks.txt", frameworksDiff));
     }
 
     private async Task<string> JitAnalyzeAsync()
@@ -261,6 +268,7 @@ internal sealed class JitDiffJob : JobBase
         await RunProcessAsync("jitutils/bin/jit-analyze",
             "-b jit-diffs/frameworks/dasmset_1/base -d jit-diffs/frameworks/dasmset_2/base -r -c 100",
             output,
+            logPrefix: "jit-analyze",
             checkExitCode: false);
 
         return string.Join('\n', output);
@@ -284,6 +292,7 @@ internal sealed class JitDiffJob : JobBase
             (useTier0 ? "--tier0 " : "") +
             $"--output jit-diffs/frameworks --frameworks --pmi " +
             $"--core_root {artifactsFolder} " +
-            $"--base {checkedClrFolder}");
+            $"--base {checkedClrFolder}",
+            logPrefix: $"jit-diff {(baseline ? "main" : "pr")}");
     }
 }
