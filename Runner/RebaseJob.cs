@@ -9,11 +9,11 @@ internal sealed class RebaseJob : JobBase
 
     protected override async Task RunJobCoreAsync()
     {
-        const string ScriptName = "clone-rebase.bat";
-
         string pushToken = Metadata["MihuBotPushToken"];
 
-        File.WriteAllText(ScriptName,
+        bool isRebase = CustomArguments.StartsWith("rebase", StringComparison.OrdinalIgnoreCase);
+
+        await RunBatchScriptAsync("clone-rebase.bat",
             $$"""
             git config --system core.longpaths true
             git clone --progress https://github.com/dotnet/runtime runtime
@@ -25,11 +25,16 @@ internal sealed class RebaseJob : JobBase
             git fetch pr {{SourceBranch}}
             git checkout {{SourceBranch}}
             git log -1
-            git rebase main
-            git push pr -f
-            """);
+            git {{(isRebase ? "rebase" : "merge")}} main
+            """,
+            line => line.Replace(pushToken, "<REDACTED>", StringComparison.OrdinalIgnoreCase));
 
-        await RunProcessAsync(ScriptName, string.Empty,
-            processLogs: line => line.Replace(pushToken, "<REDACTED>", StringComparison.OrdinalIgnoreCase));
+        await RunBatchScriptAsync("push.bat", $"git push pr {(isRebase ? "-f" : "")}");
+    }
+
+    private async Task RunBatchScriptAsync(string name, string script, Func<string, string>? processLogs = null)
+    {
+        File.WriteAllText(name, script);
+        await RunProcessAsync(name, string.Empty, processLogs: processLogs);
     }
 }
