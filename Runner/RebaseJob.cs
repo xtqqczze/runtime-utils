@@ -29,7 +29,11 @@ internal sealed class RebaseJob : JobBase
             """,
             line => line.Replace(pushToken, "<REDACTED>", StringComparison.OrdinalIgnoreCase));
 
-        await RunBatchScriptAsync("push.bat", $"git push pr {(isRebase ? "-f" : "")}");
+        await RunBatchScriptAsync("push.bat",
+            $$"""
+            cd runtime
+            git push pr {{(isRebase ? "-f" : "")}}
+            """);
     }
 
     private async Task RunBatchScriptAsync(string name, string script, Func<string, string>? processLogs = null)
