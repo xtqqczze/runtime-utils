@@ -258,14 +258,17 @@ public abstract class JobBase
         string? logPrefix = null,
         string? workDir = null,
         bool checkExitCode = true,
+        Func<string, string>? processLogs = null,
         CancellationToken cancellationToken = default)
     {
+        processLogs ??= i => i;
+
         if (logPrefix is not null)
         {
             logPrefix = $"[{logPrefix}] ";
         }
 
-        await LogAsync($"{logPrefix}Running '{fileName} {arguments}'");
+        await LogAsync(processLogs($"{logPrefix}Running '{fileName} {arguments}'"));
 
         using var process = new Process
         {
@@ -288,8 +291,8 @@ public abstract class JobBase
         catch { }
 
         await Task.WhenAll(
-            Task.Run(() => ReadOutputStreamAsync(process.StandardOutput)),
-            Task.Run(() => ReadOutputStreamAsync(process.StandardError)),
+            Task.Run(() => ReadOutputStreamAsync(process.StandardOutput), CancellationToken.None),
+            Task.Run(() => ReadOutputStreamAsync(process.StandardError), CancellationToken.None),
             Task.Run(async () =>
             {
                 try
@@ -301,7 +304,7 @@ public abstract class JobBase
                     process.Kill(true);
                     throw;
                 }
-            }));
+            }, CancellationToken.None));
 
         if (checkExitCode && process.ExitCode != 0)
         {
@@ -310,7 +313,7 @@ public abstract class JobBase
 
         async Task ReadOutputStreamAsync(StreamReader reader)
         {
-            while (await reader.ReadLineAsync() is string line)
+            while (await reader.ReadLineAsync(cancellationToken) is string line)
             {
                 if (output is not null)
                 {
@@ -320,7 +323,7 @@ public abstract class JobBase
                     }
                 }
 
-                await LogAsync($"{logPrefix}{line}");
+                await LogAsync(processLogs($"{logPrefix}{line}"));
             }
         }
     }

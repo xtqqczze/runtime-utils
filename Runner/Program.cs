@@ -77,6 +77,7 @@ static async Task RunAsync(string[] args)
     {
         nameof(JitDiffJob) => new JitDiffJob(client, metadata),
         nameof(FuzzLibrariesJob) => new FuzzLibrariesJob(client, metadata),
+        nameof(RebaseJob) => new RebaseJob(client, metadata),
         var type => throw new NotSupportedException(type),
     };
 
