@@ -38,7 +38,7 @@ internal sealed class JitDiffJob : JobBase
 
         int availableRamGB = await GetTotalSystemMemoryGBAsync(TimeSpan.FromSeconds(5));
 
-        if (availableRamGB > 60)
+        if (availableRamGB >= 30)
         {
             if (await TryApplyAsync(async () =>
             {
