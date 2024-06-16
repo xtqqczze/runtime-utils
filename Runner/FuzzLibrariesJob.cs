@@ -144,7 +144,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
         using CancellationTokenSource failureCts = new();
         int failureStackUploaded = 0;
 
-        await Parallel.ForEachAsync(Enumerable.Range(1, parallelism), async (i, _) =>
+        await Parallel.ForEachAsync(Enumerable.Range(1, parallelism), JobTimeout, async (i, _) =>
         {
             List<string> output = [];
             string number = i.ToString().PadLeft(parallelism.ToString().Length, '0');

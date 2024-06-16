@@ -13,6 +13,7 @@ public abstract class JobBase
 {
     protected static readonly TimeSpan MaxJobDuration = TimeSpan.FromHours(5);
 
+    private readonly CancellationTokenSource _jobCts = new(MaxJobDuration);
     private readonly string _jobId;
     private readonly HttpClient _client;
     private readonly Channel<string> _channel;
@@ -21,7 +22,7 @@ public abstract class JobBase
     private volatile bool _completed;
 
     protected readonly Stopwatch JobStopwatch = Stopwatch.StartNew();
-    protected CancellationToken JobTimeout { get; private set; }
+    protected CancellationToken JobTimeout => _jobCts.Token;
     protected Dictionary<string, string> Metadata { get; }
 
     public string CustomArguments => Metadata["CustomArguments"];
@@ -78,13 +79,10 @@ public abstract class JobBase
     {
         _lastLogEntry.Start();
 
-        using var jobCts = new CancellationTokenSource(MaxJobDuration);
-        JobTimeout = jobCts.Token;
-
         Task channelReaderTask = Task.Run(() => ReadChannelAsync());
         Task systemUsageTask = Task.Run(() => StreamSystemHardwareInfoAsync());
 
-        _ = channelReaderTask.ContinueWith(_ => jobCts.Cancel());
+        _ = channelReaderTask.ContinueWith(_ => _jobCts.Cancel());
 
         try
         {
@@ -248,7 +246,11 @@ public abstract class JobBase
         finally
         {
             Volatile.Write(ref completed, true);
-            await heartbeatTask.WaitAsync(JobTimeout);
+
+            if (!JobTimeout.IsCancellationRequested)
+            {
+                await heartbeatTask.WaitAsync(JobTimeout);
+            }
         }
     }
 
@@ -281,6 +283,7 @@ public abstract class JobBase
         };
 
         using var cts = CancellationTokenSource.CreateLinkedTokenSource(JobTimeout, cancellationToken);
+        cancellationToken = cts.Token;
 
         process.Start();
 
@@ -368,6 +371,12 @@ public abstract class JobBase
             try
             {
                 using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, JobTimeout);
+
+                if (response.Headers.Contains("X-Job-Completed"))
+                {
+                    _jobCts.Cancel();
+                }
+
                 response.EnsureSuccessStatusCode();
                 return;
             }
