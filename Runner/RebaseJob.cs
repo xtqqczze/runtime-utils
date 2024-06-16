@@ -11,8 +11,8 @@ internal sealed class RebaseJob : JobBase
     {
         string pushToken = Metadata["MihuBotPushToken"];
 
-        bool isRebase = CustomArguments.StartsWith("rebase", StringComparison.OrdinalIgnoreCase);
         bool isJitFormat = CustomArguments.Contains("format", StringComparison.OrdinalIgnoreCase);
+        bool isRebase = !isJitFormat && CustomArguments.StartsWith("rebase", StringComparison.OrdinalIgnoreCase);
 
         await RunBatchScriptAsync("clone.bat",
             $$"""
