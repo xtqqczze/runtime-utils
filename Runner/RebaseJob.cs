@@ -31,29 +31,24 @@ internal sealed class RebaseJob : JobBase
 
         if (isJitFormat)
         {
-            await RunBatchScriptAsync("test.bat",
-                """
-                cd runtime
-                git revert --no-edit ad1bb21f4a3c1bcc9375229ce9dc7d5b2183cee3
-                """);
-
             await RunProcessAsync(
                 "python",
                 "runtime/src/coreclr/scripts/jitformat.py -r runtime -a x64 -o windows",
                 checkExitCode: false);
 
-            if (!File.Exists("runtime/format.patch"))
+            if (File.Exists("runtime/format.patch"))
             {
-                throw new Exception("Expected jitformat to require changes.");
+                if (new FileInfo("runtime/format.patch").Length > 0)
+                {
+                    await UploadArtifactAsync("runtime/format.patch");
+                }
+
+                File.Delete("runtime/format.patch");
             }
 
-            await UploadArtifactAsync("runtime/format.patch");
-
-            await RunBatchScriptAsync("patch.bat",
+            await RunBatchScriptAsync("commit.bat",
                 """
                 cd runtime
-                git apply format.patch
-                rm format.patch
                 git diff
                 git add .
                 git commit -m "Apply jitformat patch"
@@ -78,9 +73,9 @@ internal sealed class RebaseJob : JobBase
         }
     }
 
-    private async Task<int> RunBatchScriptAsync(string name, string script, Func<string, string>? processLogs = null, bool checkExitCode = true)
+    private async Task<int> RunBatchScriptAsync(string name, string script, Func<string, string>? processLogs = null)
     {
         File.WriteAllText(name, script);
-        return await RunProcessAsync(name, string.Empty, checkExitCode: checkExitCode, processLogs: processLogs);
+        return await RunProcessAsync(name, string.Empty, processLogs: processLogs);
     }
 }
