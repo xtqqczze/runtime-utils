@@ -252,7 +252,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task RunProcessAsync(
+    protected async Task<int> RunProcessAsync(
         string fileName, string arguments,
         List<string>? output = null,
         string? logPrefix = null,
@@ -310,6 +310,8 @@ public abstract class JobBase
         {
             throw new Exception($"{fileName} {arguments} failed with exit code {process.ExitCode}");
         }
+
+        return process.ExitCode;
 
         async Task ReadOutputStreamAsync(StreamReader reader)
         {
