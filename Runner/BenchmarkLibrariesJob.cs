@@ -26,7 +26,12 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
     {
         Task cloneRuntimeTask = RuntimeHelpers.CloneRuntimeAsync(this);
 
-        Task clonePerformanceTask = RunProcessAsync("git", "clone --no-tags --depth=1 --progress https://github.com/dotnet/performance performance", logPrefix: "Clone performance");
+        Task clonePerformanceTask = Task.Run(async () =>
+        {
+            (string repo, string branch) = GetDotnetPerformanceRepoSource();
+
+            await RunProcessAsync("git", $"clone --no-tags --depth=1 -b {branch} --progress https://github.com/{repo} performance", logPrefix: "Clone performance");
+        });
 
         Task setupZipAndWgetTask = RunProcessAsync("apt-get", "install -y zip wget", logPrefix: "Setup zip & wget");
 
@@ -36,6 +41,23 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
         await setupZipAndWgetTask;
         await clonePerformanceTask;
         await cloneRuntimeTask;
+
+        (string Repo, string Branch) GetDotnetPerformanceRepoSource()
+        {
+            foreach (string arg in CustomArguments.Split(' '))
+            {
+                if (Uri.TryCreate(arg, UriKind.Absolute, out Uri? uri) &&
+                    uri.IsAbsoluteUri &&
+                    uri.Scheme == Uri.UriSchemeHttps &&
+                    GitHubBranchRegex().Match(arg) is { Success: true } match)
+                {
+                    Group branch = match.Groups[2];
+                    return (match.Groups[1].Value, branch.Success ? branch.Value : "main");
+                }
+            }
+
+            return ("dotnet/performance", "main");
+        }
     }
 
     private async Task BuildRuntimeAsync()
@@ -191,4 +213,11 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
     // 420    74.5    0h 40m
     [GeneratedRegex(@"Remained (\d+) \((.*?) %\).*?\(([\dhms ]+) from", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex BdnProgressSummaryRegex();
+
+    // https://github.com/MihaZupan/performance
+    // https://github.com/MihaZupan/performance/tree/regex
+    // https://github.com/MihaZupan/performance/blob/regex/.gitignore#L5
+    // we want 'MihaZupan/performance' and optionally 'regex'
+    [GeneratedRegex(@"https://github\.com/([A-Za-z\d-_]+/[A-Za-z\d-_]+)(?:/(?:tree|blob)/([A-Za-z\d-_]+)(?:[\?#/].*)?)?", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex GitHubBranchRegex();
 }
