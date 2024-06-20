@@ -29,7 +29,7 @@ public abstract class JobBase
     public Dictionary<string, string> Metadata { get; }
     public readonly string OriginalWorkingDirectory = Environment.CurrentDirectory;
 
-    public string LastProgressSummary { get; set; }
+    public string? LastProgressSummary { get; set; }
 
     protected readonly ConcurrentQueue<Task> PendingTasks = new();
 
@@ -142,21 +142,17 @@ public abstract class JobBase
         }
     }
 
-    protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath, string? workDir = null)
+    protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
     {
         zipFileName = $"{zipFileName}.zip";
-
-        if (!string.IsNullOrEmpty(workDir))
-        {
-            zipFileName = Path.GetFullPath(Path.Combine(workDir, zipFileName));
-        }
+        string zipFilePath = Path.GetFullPath(zipFileName);
 
         if (OperatingSystem.IsWindows())
         {
             await LogAsync($"[{zipFileName}] Compressing {folderPath}");
             try
             {
-                ZipFile.CreateFromDirectory(folderPath, zipFileName, CompressionLevel.Optimal, includeBaseDirectory: false);
+                ZipFile.CreateFromDirectory(folderPath, zipFilePath, CompressionLevel.Optimal, includeBaseDirectory: false);
             }
             catch (Exception ex)
             {
@@ -166,12 +162,16 @@ public abstract class JobBase
         }
         else
         {
-            await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}", logPrefix: zipFileName, workDir: workDir);
+            folderPath = Path.GetFullPath(folderPath);
+            string workDir = Path.GetDirectoryName(folderPath) ?? throw new Exception($"No parent folder for '{folderPath}'?");
+            folderPath = Path.GetRelativePath(workDir, folderPath);
+
+            await RunProcessAsync("zip", $"-3 -r {zipFilePath} {folderPath}", logPrefix: zipFileName, workDir: workDir);
         }
 
-        await UploadArtifactAsync(zipFileName);
+        await UploadArtifactAsync(zipFilePath);
 
-        File.Delete(zipFileName);
+        File.Delete(zipFilePath);
     }
 
     public async Task LogAsync(string message)
@@ -299,7 +299,7 @@ public abstract class JobBase
             logPrefix = $"[{logPrefix}] ";
         }
 
-        await LogAsync($"{logPrefix}{processLogs($"Running '{fileName} {arguments}'")}");
+        await LogAsync($"{logPrefix}{processLogs($"Running '{fileName} {arguments}'{(workDir is null ? null : $" from '{workDir}'")}")}");
 
         using var process = new Process
         {

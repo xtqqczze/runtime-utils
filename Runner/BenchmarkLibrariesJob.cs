@@ -123,12 +123,14 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
                 return line;
             });
 
+        LastProgressSummary = null;
+
         if (string.IsNullOrEmpty(artifactsDir))
         {
             throw new Exception("Couldn't find the artifacts directory");
         }
 
-        await ZipAndUploadArtifactAsync("BDN_Artifacts", Path.GetFullPath(artifactsDir), Path.GetDirectoryName(artifactsDir));
+        await ZipAndUploadArtifactAsync("BDN_Artifacts", artifactsDir);
 
         List<string> results = new();
 
