@@ -40,15 +40,23 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
     private async Task BuildRuntimeAsync()
     {
+        bool uploadCoreruns = TryGetFlag("UploadCoreruns");
+
         await BuildAndCopyRuntimeBranchBitsAsync("main");
 
-        PendingTasks.Enqueue(ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main"));
+        if (uploadCoreruns)
+        {
+            PendingTasks.Enqueue(ZipAndUploadArtifactAsync("build-artifacts-main", "artifacts-main"));
+        }
 
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
         await BuildAndCopyRuntimeBranchBitsAsync("pr");
 
-        PendingTasks.Enqueue(ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr"));
+        if (uploadCoreruns)
+        {
+            PendingTasks.Enqueue(ZipAndUploadArtifactAsync("build-artifacts-pr", "artifacts-pr"));
+        }
 
         async Task BuildAndCopyRuntimeBranchBitsAsync(string branch)
         {
