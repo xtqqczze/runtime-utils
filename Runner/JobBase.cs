@@ -142,7 +142,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
+    protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath, string? workDir = null)
     {
         zipFileName = $"{zipFileName}.zip";
 
@@ -161,7 +161,7 @@ public abstract class JobBase
         }
         else
         {
-            await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}", logPrefix: zipFileName);
+            await RunProcessAsync("zip", $"-3 -r {zipFileName} {folderPath}", logPrefix: zipFileName, workDir: workDir);
         }
 
         await UploadArtifactAsync(zipFileName);

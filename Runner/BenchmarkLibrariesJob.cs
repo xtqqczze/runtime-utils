@@ -70,7 +70,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
     private async Task RunBenchmarksAsync()
     {
-        const string HiddenColumns = "Job StdDev RatioSD Median Min Max";
+        const string HiddenColumns = "Job StdDev RatioSD Median Min Max OutlierMode MemoryRandomization";
 
         string filter = FilterNameRegex().Match(CustomArguments).Groups[1].Value;
         filter = filter.Trim().Trim('`').Trim();
@@ -123,7 +123,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
             throw new Exception("Couldn't find the artifacts directory");
         }
 
-        await ZipAndUploadArtifactAsync("BDN_Artifacts.zip", artifactsDir);
+        await ZipAndUploadArtifactAsync("BDN_Artifacts", artifactsDir, Path.GetDirectoryName(artifactsDir));
 
         List<string> results = new();
 
@@ -160,8 +160,8 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
                 if (line.EndsWith(":|-"))
                     line = line.Remove(line.Length - 1);
 
-                line = line.Replace("artifacts-main/corerun", "Main").Replace(corerunMain, "Main");
-                line = line.Replace("artifacts-pr/corerun", "PR").Replace(corerunPr, "PR");
+                line = line.Replace("/artifacts-main/corerun", "Main");
+                line = line.Replace("/artifacts-pr/corerun", "PR");
 
                 result.AppendLine(line);
             }
