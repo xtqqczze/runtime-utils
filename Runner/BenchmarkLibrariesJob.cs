@@ -111,10 +111,20 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
         await ZipAndUploadArtifactAsync("BDN_Artifacts.zip", artifactsDir);
 
-        StringBuilder results = new();
+        List<string> results = new();
+
         foreach (var resultsMd in Directory.GetFiles(artifactsDir, "*-report-github.md", SearchOption.AllDirectories))
         {
             await LogAsync($"Reading {resultsMd} ...");
+
+            StringBuilder result = new();
+
+            string friendlyName = Path.GetFileName(resultsMd);
+            friendlyName = friendlyName.Substring(0, friendlyName.Length - "-report-github.md".Length);
+
+            result.AppendLine("<details>");
+            result.AppendLine($"<summary>{friendlyName}</summary>");
+            result.AppendLine();
 
             foreach (string rawLine in await File.ReadAllLinesAsync(resultsMd))
             {
@@ -139,13 +149,18 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
                 line = line.Replace("artifacts-main/corerun", "Main").Replace(corerunMain, "Main");
                 line = line.Replace("artifacts-pr/corerun", "PR").Replace(corerunPr, "PR");
 
-                results.AppendLine(line);
+                result.AppendLine(line);
             }
 
-            results.AppendLine();
+            result.AppendLine();
+            result.AppendLine("</details>");
+
+            results.Add(result.ToString());
         }
 
-        await UploadTextArtifactAsync("results.md", results.ToString());
+        string combinedMarkdown = string.Join("\n\n", results);
+
+        await UploadTextArtifactAsync("results.md", combinedMarkdown);
     }
 
     [GeneratedRegex(@"^benchmark ([^ ]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
