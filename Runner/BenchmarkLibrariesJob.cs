@@ -123,7 +123,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
             throw new Exception("Couldn't find the artifacts directory");
         }
 
-        await ZipAndUploadArtifactAsync("BDN_Artifacts", artifactsDir, Path.GetDirectoryName(artifactsDir));
+        await ZipAndUploadArtifactAsync("BDN_Artifacts", Path.GetFullPath(artifactsDir), Path.GetDirectoryName(artifactsDir));
 
         List<string> results = new();
 
