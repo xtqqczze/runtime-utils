@@ -31,6 +31,35 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
             (string repo, string branch) = GetDotnetPerformanceRepoSource();
 
             await RunProcessAsync("git", $"clone --no-tags --depth=1 -b {branch} --progress https://github.com/{repo} performance", logPrefix: "Clone performance");
+
+            if (TryGetFlag("medium") || TryGetFlag("long"))
+            {
+                string? path = Directory.EnumerateFiles("performance", "*.cs", SearchOption.AllDirectories)
+                    .Where(f => f.EndsWith("RecommendedConfig.cs", StringComparison.Ordinal))
+                    .FirstOrDefault();
+
+                if (string.IsNullOrEmpty(path))
+                {
+                    await LogAsync("Failed to find RecommendedConfig.cs");
+                }
+                else
+                {
+                    string jobType = $"Job.{(TryGetFlag("medium") ? "Medium" : "Long")}Run";
+
+                    string source = File.ReadAllText(path);
+                    string newSource = RecommendedConfigJobTypeRegex().Replace(source, $"job = {jobType};");
+
+                    if (source == newSource)
+                    {
+                        await LogAsync("Failed to find the existing Job type");
+                    }
+                    else
+                    {
+                        File.WriteAllText(path, newSource);
+                        await LogAsync($"Replaced Job type with {jobType}");
+                    }
+                }
+            }
         });
 
         Task setupZipAndWgetTask = RunProcessAsync("apt-get", "install -y zip wget", logPrefix: "Setup zip & wget");
@@ -229,4 +258,8 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
     // We want '+|H' to replace it with '+\|H'
     [GeneratedRegex(@"([^ \n:\\])\|([^ \n:])")]
     private static partial Regex PipeCharInTableCellRegex();
+
+    // Matches https://github.com/dotnet/performance/blob/d0d7ea34e98ca19f8264a17abe05ef6f73e888ba/src/harness/BenchmarkDotNet.Extensions/RecommendedConfig.cs#L33-L38
+    [GeneratedRegex(@"job = Job\..*?;", RegexOptions.Singleline)]
+    private static partial Regex RecommendedConfigJobTypeRegex();
 }
