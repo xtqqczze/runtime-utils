@@ -7,9 +7,6 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 {
     private const string DeploymentPath = "runtime/src/libraries/Fuzzing/DotnetFuzzing/deployment";
 
-    private string SourceRepo => Metadata["PrRepo"];
-    private string SourceBranch => Metadata["PrBranch"];
-
     public FuzzLibrariesJob(HttpClient client, Dictionary<string, string> metadata) : base(client, metadata) { }
 
     protected override async Task RunJobCoreAsync()
@@ -53,7 +50,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             git log pr/{{SourceBranch}} -1
             git merge --no-edit pr/{{SourceBranch}}
 
-            call .\build.cmd clr+libs+packs+host -rc Checked -c Debug /p:RunAnalyzers=false /p:ApiCompatValidateAssemblies=false
+            call .\build.cmd clr+libs+packs+host -rc Checked -c Debug {{RuntimeHelpers.LibrariesExtraBuildArgs}}
 
             cd src\libraries\Fuzzing\DotnetFuzzing
             ..\..\..\..\.dotnet\dotnet publish -o publish

@@ -2,9 +2,6 @@
 
 internal sealed class RebaseJob : JobBase
 {
-    private string SourceRepo => Metadata["PrRepo"];
-    private string SourceBranch => Metadata["PrBranch"];
-
     public RebaseJob(HttpClient client, Dictionary<string, string> metadata) : base(client, metadata) { }
 
     protected override async Task RunJobCoreAsync()

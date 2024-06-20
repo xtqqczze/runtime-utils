@@ -6,11 +6,14 @@ using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.IO.Compression;
 using Azure.Storage.Blobs;
+using System.Collections.Concurrent;
 
 namespace Runner;
 
 public abstract class JobBase
 {
+    public static bool IsArm => RuntimeInformation.ProcessArchitecture == Architecture.Arm64;
+
     protected static readonly TimeSpan MaxJobDuration = TimeSpan.FromHours(5);
 
     private readonly CancellationTokenSource _jobCts = new(MaxJobDuration);
@@ -23,9 +26,14 @@ public abstract class JobBase
 
     protected readonly Stopwatch JobStopwatch = Stopwatch.StartNew();
     protected CancellationToken JobTimeout => _jobCts.Token;
-    protected Dictionary<string, string> Metadata { get; }
+    public Dictionary<string, string> Metadata { get; }
+    public readonly string OriginalWorkingDirectory = Environment.CurrentDirectory;
+
+    protected readonly ConcurrentQueue<Task> PendingTasks = new();
 
     public string CustomArguments => Metadata["CustomArguments"];
+    public string SourceRepo => Metadata["PrRepo"];
+    public string SourceBranch => Metadata["PrBranch"];
 
     protected bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
 
@@ -91,10 +99,14 @@ public abstract class JobBase
             await LogAsync($"{nameof(Environment.CurrentDirectory)}={Environment.CurrentDirectory}");
             await LogAsync($"{nameof(RuntimeInformation.FrameworkDescription)}={RuntimeInformation.FrameworkDescription}");
             await LogAsync($"{nameof(RuntimeInformation.RuntimeIdentifier)}={RuntimeInformation.RuntimeIdentifier}");
+            await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
+            await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
 
             Console.WriteLine($"Starting {Metadata["JobType"]} ({Metadata["ExternalId"]}) ...");
 
             await RunJobCoreAsync();
+
+            await WaitForPendingTasksAsync();
         }
         catch (Exception ex)
         {
@@ -118,6 +130,14 @@ public abstract class JobBase
         catch { }
 
         await _client.GetStringAsync($"Complete/{_jobId}", CancellationToken.None);
+    }
+
+    protected async Task WaitForPendingTasksAsync()
+    {
+        while (PendingTasks.TryDequeue(out Task? task))
+        {
+            await task;
+        }
     }
 
     protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
@@ -145,7 +165,7 @@ public abstract class JobBase
         await UploadArtifactAsync(zipFileName);
     }
 
-    protected async Task LogAsync(string message)
+    public async Task LogAsync(string message)
     {
         lock (_lastLogEntry)
         {
@@ -254,7 +274,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task<int> RunProcessAsync(
+    public async Task<int> RunProcessAsync(
         string fileName, string arguments,
         List<string>? output = null,
         string? logPrefix = null,
@@ -270,7 +290,7 @@ public abstract class JobBase
             logPrefix = $"[{logPrefix}] ";
         }
 
-        await LogAsync(processLogs($"{logPrefix}Running '{fileName} {arguments}'"));
+        await LogAsync($"{logPrefix}{processLogs($"Running '{fileName} {arguments}'")}");
 
         using var process = new Process
         {
@@ -328,7 +348,7 @@ public abstract class JobBase
                     }
                 }
 
-                await LogAsync(processLogs($"{logPrefix}{line}"));
+                await LogAsync($"{logPrefix}{processLogs(line)}");
             }
         }
     }
@@ -407,22 +427,48 @@ public abstract class JobBase
         return (int)(memory.TotalPhysical / 1024 / 1024 / 1024);
     }
 
-    protected async ValueTask<int> GetTotalSystemMemoryGBAsync(TimeSpan timeout)
+    protected async Task ChangeWorkingDirectoryToRamDiskAsync()
     {
+        if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
+        {
+            return;
+        }
+
         Stopwatch s = Stopwatch.StartNew();
 
         do
         {
             if (_hardwareInfo is not null)
             {
-                return GetTotalSystemMemoryGB();
+                break;
             }
 
             await Task.Delay(10);
         }
-        while (s.Elapsed < timeout);
+        while (s.Elapsed.TotalSeconds < 5);
 
-        return 1;
+        int availableRamGB = GetTotalSystemMemoryGB();
+
+        if (availableRamGB >= 30)
+        {
+            try
+            {
+                const string NewWorkDir = "/ramdisk";
+                const string LogPrefix = "Prepare RAM disk";
+
+                int ramDiskSize = Math.Min(128, availableRamGB / 4 * 3);
+                await RunProcessAsync("mkdir", NewWorkDir, logPrefix: LogPrefix);
+                await RunProcessAsync("mount", $"-t tmpfs -o size={ramDiskSize}G tmpfs {NewWorkDir}", logPrefix: LogPrefix);
+
+                Environment.CurrentDirectory = NewWorkDir;
+
+                await LogAsync($"Changed working directory to {NewWorkDir}");
+            }
+            catch (Exception ex)
+            {
+                await LogAsync($"Failed to apply new working directory: {ex}");
+            }
+        }
     }
 
     private async Task StreamSystemHardwareInfoAsync()
