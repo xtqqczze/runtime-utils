@@ -73,6 +73,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
         const string HiddenColumns = "Job StdDev RatioSD Median Min Max";
 
         string filter = FilterNameRegex().Match(CustomArguments).Groups[1].Value;
+        filter = filter.Trim().Trim('`').Trim();
 
         // "version": "9.0.100-preview.5.24307.3",
         char dotnetVersion = File.ReadAllLines("runtime/global.json")
