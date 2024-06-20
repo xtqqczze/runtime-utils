@@ -108,6 +108,13 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
                     artifactsDir = dir;
                 }
 
+                // ** Remained 420 (74.5 %) benchmark(s) to run. Estimated finish 2024-06-20 2:54 (0h 40m from now) **
+                if (line.Contains("benchmark(s) to run. Estimated finish", StringComparison.Ordinal) &&
+                    BdnProgressSummaryRegex().Match(line) is { Success: true } match)
+                {
+                    LastProgressSummary = $"{match.Groups[1].ValueSpan} ({match.Groups[2].ValueSpan} %) benchmarks remain. Estimated time: {match.Groups[3].ValueSpan}";
+                }
+
                 return line;
             });
 
@@ -172,4 +179,9 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
     [GeneratedRegex(@"^benchmark ([^ ]+)", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex FilterNameRegex();
+
+    // ** Remained 420 (74.5 %) benchmark(s) to run. Estimated finish 2024-06-20 2:54 (0h 40m from now) **
+    // 420    74.5    0h 40m
+    [GeneratedRegex(@"Remained (\d+) \((.*?) %\).*?\(([\dhms ]+) from", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    private static partial Regex BdnProgressSummaryRegex();
 }

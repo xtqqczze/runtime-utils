@@ -29,6 +29,8 @@ public abstract class JobBase
     public Dictionary<string, string> Metadata { get; }
     public readonly string OriginalWorkingDirectory = Environment.CurrentDirectory;
 
+    public string LastProgressSummary { get; set; }
+
     protected readonly ConcurrentQueue<Task> PendingTasks = new();
 
     public string CustomArguments => Metadata["CustomArguments"];
@@ -383,14 +385,14 @@ public abstract class JobBase
             JobTimeout);
     }
 
-    private async Task PostAsJsonAsync(string path, object? value, int attemptsRemaining = 4)
+    private async Task PostAsJsonAsync(string path, object? value, string? queryArgs = null, int attemptsRemaining = 4)
     {
         int delayMs = 1_000;
         while (true)
         {
             try
             {
-                using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}", value, JobTimeout);
+                using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}{queryArgs}", value, JobTimeout);
 
                 if (response.Headers.Contains("X-Job-Completed"))
                 {
@@ -527,7 +529,7 @@ public abstract class JobBase
                 CpuCoresAvailable = coreCount,
                 MemoryUsageGB = usedGB,
                 MemoryAvailableGB = totalGB,
-            });
+            }, LastProgressSummary is { } summary ? $"?progressSummary={Uri.EscapeDataString(summary)}" : null);
         }
 
         if (failureMessages == 0 && usageHistory.Count > 0)
