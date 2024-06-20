@@ -146,6 +146,11 @@ public abstract class JobBase
     {
         zipFileName = $"{zipFileName}.zip";
 
+        if (!string.IsNullOrEmpty(workDir))
+        {
+            zipFileName = Path.GetFullPath(Path.Combine(workDir, zipFileName));
+        }
+
         if (OperatingSystem.IsWindows())
         {
             await LogAsync($"[{zipFileName}] Compressing {folderPath}");
@@ -165,6 +170,8 @@ public abstract class JobBase
         }
 
         await UploadArtifactAsync(zipFileName);
+
+        File.Delete(zipFileName);
     }
 
     public async Task LogAsync(string message)
