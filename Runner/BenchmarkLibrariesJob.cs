@@ -91,13 +91,20 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
             processLogs: line =>
             {
                 // Example:
-                // /somePath/BenchmarkDotNet.Artifacts/results/SomeTestName-report-github.md
-                // we want /somePath/BenchmarkDotNet.Artifacts
+                // ramdisk/performance/artifacts/bin/MicroBenchmarks/Release/net9.0/BenchmarkDotNet.Artifacts/results/TestName-report-github.md
+                // we want performance/artifacts/bin/MicroBenchmarks/Release/net9.0/BenchmarkDotNet.Artifacts
                 if (artifactsDir is null &&
                     line.AsSpan().TrimEnd().EndsWith("-report-github.md", StringComparison.Ordinal) &&
                     Path.GetDirectoryName(Path.GetDirectoryName(line.AsSpan().Trim())).TrimEnd(['/', '\\']).ToString() is { } dir &&
                     dir.EndsWith("BenchmarkDotNet.Artifacts", StringComparison.Ordinal))
                 {
+                    const string PerformanceDir = "/performance/";
+
+                    if (dir.Contains(PerformanceDir, StringComparison.Ordinal))
+                    {
+                        dir = dir.Substring(dir.IndexOf(PerformanceDir, StringComparison.Ordinal) + 1);
+                    }
+
                     artifactsDir = dir;
                 }
 
