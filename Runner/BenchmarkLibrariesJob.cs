@@ -75,6 +75,11 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
         string filter = FilterNameRegex().Match(CustomArguments).Groups[1].Value;
         filter = filter.Trim().Trim('`').Trim();
 
+        if (!string.IsNullOrWhiteSpace(filter) && !filter.Contains('*'))
+        {
+            filter = $"*{filter}*";
+        }
+
         // "version": "9.0.100-preview.5.24307.3",
         char dotnetVersion = File.ReadAllLines("runtime/global.json")
             .First(line => line.Contains("version", StringComparison.OrdinalIgnoreCase))
