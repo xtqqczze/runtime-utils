@@ -185,9 +185,15 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
                 if (line.StartsWith("Job-"))
                     line = "  " + line;
 
-                // Workaround for BDN's bug: https://github.com/dotnet/BenchmarkDotNet/issues/2545
-                if (line.EndsWith(":|-"))
-                    line = line.Remove(line.Length - 1);
+                if (line.Contains('|'))
+                {
+                    // Workaround for BDN's bug: https://github.com/dotnet/BenchmarkDotNet/issues/2545
+                    if (line.EndsWith(":|-"))
+                        line = line.Remove(line.Length - 1);
+
+                    line = PipeCharInTableCellRegex().Replace(line, static match =>
+                        $"{match.Groups[1].ValueSpan}\\|{match.Groups[2].ValueSpan}");
+                }
 
                 line = line.Replace("/artifacts-main/corerun", "Main");
                 line = line.Replace("/artifacts-pr/corerun", "PR");
@@ -220,4 +226,9 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
     // we want 'MihaZupan/performance' and optionally 'regex'
     [GeneratedRegex(@"https://github\.com/([A-Za-z\d-_]+/[A-Za-z\d-_]+)(?:/(?:tree|blob)/([A-Za-z\d-_]+)(?:[\?#/].*)?)?", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex GitHubBranchRegex();
+
+    // | Count  | Main | (?i)Sher[a-z]+|Hol[a-z]+ |
+    // We want '+|H' to replace it with '+\|H'
+    [GeneratedRegex(@"([^ \n:\\])\|([^ \n:])")]
+    private static partial Regex PipeCharInTableCellRegex();
 }
