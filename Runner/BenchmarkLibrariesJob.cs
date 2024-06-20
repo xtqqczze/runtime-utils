@@ -71,10 +71,13 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
             .First(line => line.Contains("version", StringComparison.OrdinalIgnoreCase))
             .Split(':')[1].TrimStart(' ', '"')[0];
 
+        string corerunMain = Path.GetFullPath("artifacts-main/corerun");
+        string corerunPr = Path.GetFullPath("artifacts-pr/corerun");
+
         string? artifactsDir = null;
 
         await RunProcessAsync("dotnet",
-            $"run -c Release --framework net{dotnetVersion}.0 -- --filter {filter} -h {HiddenColumns} --corerun artifacts-main/corerun artifacts-pr/corerun",
+            $"run -c Release --framework net{dotnetVersion}.0 -- --filter {filter} -h {HiddenColumns} --corerun {corerunMain} {corerunPr}",
             workDir: "performance/src/benchmarks/micro",
             processLogs: line =>
             {
@@ -124,8 +127,8 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
                 if (line.EndsWith(":|-"))
                     line = line.Remove(line.Length - 1);
 
-                line = line.Replace("artifacts-main/corerun", "Main");
-                line = line.Replace("artifacts-pr/corerun", "PR");
+                line = line.Replace("artifacts-main/corerun", "Main").Replace(corerunMain, "Main");
+                line = line.Replace("artifacts-pr/corerun", "PR").Replace(corerunPr, "PR");
 
                 results.AppendLine(line);
             }
