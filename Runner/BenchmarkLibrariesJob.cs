@@ -175,9 +175,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
                 if (string.IsNullOrEmpty(line) ||
                     line.StartsWith(".NET SDK ", StringComparison.Ordinal) ||
-                    line.StartsWith("[Host]", StringComparison.Ordinal) ||
-                    line.StartsWith("PowerPlanMode", StringComparison.OrdinalIgnoreCase) ||
-                    line.StartsWith("MinIterationCount", StringComparison.OrdinalIgnoreCase))
+                    line.StartsWith("[Host]", StringComparison.Ordinal))
                 {
                     continue;
                 }
