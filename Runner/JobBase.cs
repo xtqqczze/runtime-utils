@@ -247,7 +247,7 @@ public abstract class JobBase
 
         try
         {
-            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.AboveNormal;
+            Process.GetCurrentProcess().PriorityClass = ProcessPriorityClass.High;
         }
         catch { }
 
@@ -291,6 +291,7 @@ public abstract class JobBase
         bool checkExitCode = true,
         Func<string, string>? processLogs = null,
         bool suppressOutputLogs = false,
+        ProcessPriorityClass priority = ProcessPriorityClass.Normal,
         CancellationToken cancellationToken = default)
     {
         processLogs ??= i => i;
@@ -324,9 +325,12 @@ public abstract class JobBase
 
         try
         {
-            process.PriorityClass = ProcessPriorityClass.BelowNormal;
+            process.PriorityClass = priority;
         }
-        catch { }
+        catch (Exception ex)
+        {
+            await LogAsync($"{logPrefix}{processLogs($"Failed to set process priority: {ex}")}");
+        }
 
         await Task.WhenAll(
             Task.Run(() => ReadOutputStreamAsync(process.StandardOutput), CancellationToken.None),
