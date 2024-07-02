@@ -99,13 +99,8 @@ internal sealed class JitDiffJob : JobBase
 
     private async Task CollectFrameworksDiffsAsync()
     {
-        bool runSequential =
-            TryGetFlag("force-frameworks-sequential") ? true :
-            TryGetFlag("force-frameworks-parallel") ? false :
-            GetTotalSystemMemoryGB() < 12;
-
-        Task baselineTask = JitDiffAsync(baseline: true, sequential: runSequential);
-        await JitDiffAsync(baseline: false, sequential: runSequential);
+        Task baselineTask = JitDiffAsync(baseline: true);
+        await JitDiffAsync(baseline: false);
         await baselineTask;
 
         PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-frameworks", "jit-diffs/frameworks"));
@@ -128,7 +123,7 @@ internal sealed class JitDiffJob : JobBase
         return string.Join('\n', output);
     }
 
-    private async Task JitDiffAsync(bool baseline, bool sequential = false)
+    private async Task JitDiffAsync(bool baseline)
     {
         string artifactsFolder = baseline ? "artifacts-main" : "artifacts-pr";
         string checkedClrFolder = baseline ? "clr-checked-main" : "clr-checked-pr";
@@ -136,12 +131,11 @@ internal sealed class JitDiffJob : JobBase
         bool useCctors = !TryGetFlag("nocctors");
         bool useTier0 = TryGetFlag("tier0");
 
-        await LogAsync($"Using cctors: {useCctors}");
-        await LogAsync($"Using tier0: {useTier0}");
+        await LogAsync($"Using cctors for {artifactsFolder}: {useCctors}");
+        await LogAsync($"Using tier0 {artifactsFolder}: {useTier0}");
 
         await RunProcessAsync("jitutils/bin/jit-diff",
             $"diff " +
-            (sequential ? "--sequential " : "") +
             (useCctors ? "--cctors " : "") +
             (useTier0 ? "--tier0 " : "") +
             $"--output jit-diffs/frameworks/{(baseline ? "main" : "pr")} --frameworks --pmi " +
