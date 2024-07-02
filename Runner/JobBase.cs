@@ -166,7 +166,7 @@ public abstract class JobBase
             string workDir = Path.GetDirectoryName(folderPath) ?? throw new Exception($"No parent folder for '{folderPath}'?");
             folderPath = Path.GetRelativePath(workDir, folderPath);
 
-            await RunProcessAsync("zip", $"-3 -r {zipFilePath} {folderPath}", logPrefix: zipFileName, workDir: workDir);
+            await RunProcessAsync("zip", $"-3 -r {zipFilePath} {folderPath}", logPrefix: zipFileName, workDir: workDir, suppressOutputLogs: true);
         }
 
         await UploadArtifactAsync(zipFilePath);
@@ -290,6 +290,7 @@ public abstract class JobBase
         string? workDir = null,
         bool checkExitCode = true,
         Func<string, string>? processLogs = null,
+        bool suppressOutputLogs = false,
         CancellationToken cancellationToken = default)
     {
         processLogs ??= i => i;
@@ -297,6 +298,11 @@ public abstract class JobBase
         if (logPrefix is not null)
         {
             logPrefix = $"[{logPrefix}] ";
+        }
+
+        if (suppressOutputLogs)
+        {
+            output ??= new();
         }
 
         await LogAsync($"{logPrefix}{processLogs($"Running '{fileName} {arguments}'{(workDir is null ? null : $" from '{workDir}'")}")}");
@@ -340,7 +346,15 @@ public abstract class JobBase
 
         if (checkExitCode && process.ExitCode != 0)
         {
-            throw new Exception($"{fileName} {arguments} failed with exit code {process.ExitCode}");
+            string message = processLogs($"{fileName} {arguments} failed with exit code {process.ExitCode}");
+
+            if (suppressOutputLogs)
+            {
+                await LogAsync($"{logPrefix}{message}");
+                await LogAsync($"{logPrefix}Process output:\n{string.Join('\n', output!)}");
+            }
+
+            throw new Exception(message);
         }
 
         return process.ExitCode;
@@ -357,7 +371,10 @@ public abstract class JobBase
                     }
                 }
 
-                await LogAsync($"{logPrefix}{processLogs(line)}");
+                if (!suppressOutputLogs)
+                {
+                    await LogAsync($"{logPrefix}{processLogs(line)}");
+                }
             }
         }
     }
