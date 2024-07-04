@@ -251,7 +251,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
     // https://github.com/MihaZupan/performance/tree/regex
     // https://github.com/MihaZupan/performance/blob/regex/.gitignore#L5
     // we want 'MihaZupan/performance' and optionally 'regex'
-    [GeneratedRegex(@"https://github\.com/([A-Za-z\d-_]+/[A-Za-z\d-_]+)(?:/(?:tree|blob)/([A-Za-z\d-_]+)(?:[\?#/].*)?)?", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
+    [GeneratedRegex(@"https://github\.com/([A-Za-z\d-_\.]+/[A-Za-z\d-_\.]+)(?:/(?:tree|blob)/([A-Za-z\d-_\.]+)(?:[\?#/].*)?)?", RegexOptions.IgnoreCase | RegexOptions.Singleline)]
     private static partial Regex GitHubBranchRegex();
 
     // | Count  | Main | (?i)Sher[a-z]+|Hol[a-z]+ |
