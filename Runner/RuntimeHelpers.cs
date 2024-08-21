@@ -16,19 +16,68 @@ internal static class RuntimeHelpers
 
     public static async Task CloneRuntimeAsync(JobBase job)
     {
-        AssertIsLinux();
-
         const string LogPrefix = "Setup runtime";
 
-        string template = await File.ReadAllTextAsync(Path.Combine(job.OriginalWorkingDirectory, "setup-runtime.sh.template"));
-        string script = template
-            .ReplaceLineEndings()
-            .Replace("{{MERGE_BASELINE_BRANCHES}}", GetMergeScript("dependsOn"))
-            .Replace("{{MERGE_PR_BRANCHES}}", GetMergeScript("combineWith"));
+        if (OperatingSystem.IsLinux())
+        {
+            string script = UpdateMergePlaceholders(
+                """
+                set -e
 
-        await job.LogAsync($"Using runtime setup script:\n{script}");
-        await File.WriteAllTextAsync("setup-runtime.sh", script);
-        await job.RunProcessAsync("bash", "-x setup-runtime.sh", logPrefix: LogPrefix);
+                git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime runtime
+                cd runtime
+                git log -1
+                chmod 777 build.sh
+                git config --global user.email build@build.foo
+                git config --global user.name build
+
+                {{MERGE_BASELINE_BRANCHES}}
+
+                git switch -c pr
+
+                {{MERGE_PR_BRANCHES}}
+
+                git switch main
+
+                eng/install-native-dependencies.sh linux
+                """);
+
+            await job.LogAsync($"Using runtime setup script:\n{script}");
+            await File.WriteAllTextAsync("setup-runtime.sh", script);
+            await job.RunProcessAsync("bash", "-x setup-runtime.sh", logPrefix: LogPrefix);
+        }
+        else
+        {
+            string script = UpdateMergePlaceholders(
+                """
+                git config --system core.longpaths true
+                git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime runtime
+                cd runtime
+                git log -1
+                git config --global user.email build@build.foo
+                git config --global user.name build
+
+                {{MERGE_BASELINE_BRANCHES}}
+
+                git switch -c pr
+
+                {{MERGE_PR_BRANCHES}}
+
+                git switch main
+                """);
+
+            await job.LogAsync($"Using runtime setup script:\n{script}");
+            await File.WriteAllTextAsync("clone-runtime.bat", script);
+            await job.RunProcessAsync("clone-runtime.bat", string.Empty, logPrefix: LogPrefix);
+        }
+
+        string UpdateMergePlaceholders(string template)
+        {
+            return template
+                .ReplaceLineEndings()
+                .Replace("{{MERGE_BASELINE_BRANCHES}}", GetMergeScript("dependsOn"), StringComparison.Ordinal)
+                .Replace("{{MERGE_PR_BRANCHES}}", GetMergeScript("combineWith"), StringComparison.Ordinal);
+        }
 
         string GetMergeScript(string name)
         {

@@ -12,10 +12,4 @@
     <PackageReference Include="Hardware.Info" Version="100.1.0" />
   </ItemGroup>
 
-  <ItemGroup>
-    <None Update="setup-runtime.sh.template">
-      <CopyToOutputDirectory>Always</CopyToOutputDirectory>
-    </None>
-  </ItemGroup>
-
 </Project>

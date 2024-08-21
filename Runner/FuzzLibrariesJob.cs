@@ -28,27 +28,21 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             throw new Exception("Invalid fuzzer name. Expected something like 'fuzz HttpHeaders'");
         }
 
-        await CloneRuntimeAndPrepareFuzzerAsync();
+        await RuntimeHelpers.CloneRuntimeAsync(this);
+
+        await BuildRuntimeAndPrepareFuzzerAsync();
 
         await RunFuzzersAsync(fuzzerNamePattern);
     }
 
-    private async Task CloneRuntimeAndPrepareFuzzerAsync()
+    private async Task BuildRuntimeAndPrepareFuzzerAsync()
     {
-        const string ScriptName = "clone-build-runtime.bat";
+        const string ScriptName = "build-runtime.bat";
 
         File.WriteAllText(ScriptName,
             $$"""
-            git config --system core.longpaths true
-            git clone --progress https://github.com/dotnet/runtime runtime
             cd runtime
-            git log -1
-            git config --global user.email build@build.foo
-            git config --global user.name build
-            git remote add pr https://github.com/{{SourceRepo}}
-            git fetch pr {{SourceBranch}}
-            git log pr/{{SourceBranch}} -1
-            git merge --no-edit pr/{{SourceBranch}}
+            git switch pr
 
             call .\build.cmd clr+libs+packs+host -rc Checked -c Debug {{RuntimeHelpers.LibrariesExtraBuildArgs}}
 
