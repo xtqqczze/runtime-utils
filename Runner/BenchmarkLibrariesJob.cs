@@ -121,7 +121,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
     private async Task RunBenchmarksAsync()
     {
-        const string HiddenColumns = "Job StdDev RatioSD Median Min Max OutlierMode MemoryRandomization";
+        const string HiddenColumns = "Job StdDev RatioSD Median Min Max OutlierMode MemoryRandomization Gen0 Gen1 Gen2";
 
         string filter = FilterNameRegex().Match(CustomArguments).Groups[1].Value;
         filter = filter.Trim().Trim('`').Trim();
