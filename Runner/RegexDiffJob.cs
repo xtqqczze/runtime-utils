@@ -1,6 +1,7 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
 using System.Globalization;
 using System.IO.Compression;
+using System.Net;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -411,11 +412,19 @@ internal sealed class RegexDiffJob : JobBase
                     ? $"(RegexOptions){(int)entry.Regex.Options}"
                     : string.Join(" | ", options.Split(", ").Select(opt => $"{nameof(RegexOptions)}.{opt}"));
 
+                string patternLiteral = SymbolDisplay.FormatLiteral(entry.Regex.Pattern, quote: true);
+
+                string friendlyName = patternLiteral;
+                if (friendlyName.Length > 50)
+                {
+                    friendlyName = $"{friendlyName.AsSpan(0, 45)} ...\"";
+                }
+
                 sb.AppendLine("<details>");
-                sb.AppendLine($"<summary>Pattern with {entry.Regex.Count} uses</summary>");
+                sb.AppendLine($"<summary>{WebUtility.HtmlEncode(friendlyName)} ({entry.Regex.Count} uses)</summary>");
                 sb.AppendLine();
                 sb.AppendLine("```c#");
-                sb.AppendLine($"[GeneratedRegex({SymbolDisplay.FormatLiteral(entry.Regex.Pattern, quote: true)}, {options})]");
+                sb.AppendLine($"[GeneratedRegex({patternLiteral}, {options})]");
                 sb.AppendLine("```");
                 sb.AppendLine();
                 sb.AppendLine("```diff");
