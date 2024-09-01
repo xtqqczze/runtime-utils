@@ -23,20 +23,20 @@ internal sealed class RegexDiffJob : JobBase
     {
         await ChangeWorkingDirectoryToRamDiskAsync();
 
-        KnownPattern[] knownPatterns = await DownloadKnownPatternsAsync();
+        await DownloadKnownPatternsAsync();
 
         await RuntimeHelpers.CloneRuntimeAsync(this);
 
         await RunProcessAsync("bash", $"build.sh clr+libs -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "main", workDir: "runtime");
 
-        var mainSources = await RunSourceGeneratorOnKnownPatternsAsync(knownPatterns, "main");
+        var mainSources = await RunSourceGeneratorOnKnownPatternsAsync("main");
 
         await RunProcessAsync("git", "checkout .", workDir: "runtime");
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
         await RunProcessAsync("runtime/.dotnet/dotnet", $"build src/libraries/System.Text.RegularExpressions/gen -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "pr", workDir: "runtime");
 
-        var prSources = await RunSourceGeneratorOnKnownPatternsAsync(knownPatterns, "pr");
+        var prSources = await RunSourceGeneratorOnKnownPatternsAsync("pr");
 
         var entries = await CreateRegexEntriesAsync(mainSources, prSources);
 
@@ -47,7 +47,7 @@ internal sealed class RegexDiffJob : JobBase
         await UploadResultsAsync(entries);
     }
 
-    private async Task<KnownPattern[]> DownloadKnownPatternsAsync()
+    private async Task DownloadKnownPatternsAsync()
     {
         KnownPattern[]? knownPatterns = await HttpClient.GetFromJsonAsync<KnownPattern[]>(
             "https://raw.githubusercontent.com/dotnet/runtime-assets/main/src/System.Text.RegularExpressions.TestData/Regex_RealWorldPatterns.json",
@@ -58,12 +58,14 @@ internal sealed class RegexDiffJob : JobBase
 
         await LogAsync($"Downloaded {knownPatterns.Length} patterns");
 
-        File.WriteAllText(KnownPatternsPath, JsonSerializer.Serialize(knownPatterns, s_jsonOptions));
+        knownPatterns = knownPatterns.Distinct().ToArray();
 
-        return knownPatterns;
+        await LogAsync($"Using {knownPatterns.Length} distinct patterns");
+
+        File.WriteAllText(KnownPatternsPath, JsonSerializer.Serialize(knownPatterns, s_jsonOptions));
     }
 
-    private async Task<Dictionary<KnownPattern, string>> RunSourceGeneratorOnKnownPatternsAsync(KnownPattern[] knownPatterns, string branch)
+    private async Task<Dictionary<KnownPattern, string>> RunSourceGeneratorOnKnownPatternsAsync(string branch)
     {
         await LogAsync($"Generating {branch} Regex sources ...");
 
@@ -116,7 +118,7 @@ internal sealed class RegexDiffJob : JobBase
                         catch (Exception ex) when (ex.ToString().Contains("info SYSLIB1044", StringComparison.Ordinal)) { }
 
                         int currentProcessed = System.Threading.Interlocked.Increment(ref entriesProcessed);
-                        if (currentProcessed % 50 == 0)
+                        if (currentProcessed % 100 == 0)
                         {
                             System.Console.WriteLine($"Processed {currentProcessed} out of {regexEntries.Length} patterns");
                         }
