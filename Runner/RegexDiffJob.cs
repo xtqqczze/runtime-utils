@@ -198,12 +198,12 @@ internal sealed class RegexDiffJob : JobBase
 
                 entry.FullDiff = string.Join('\n', fullDiffLines);
                 entry.ShortDiff = string.Join('\n', shortDiffLines);
+            }
 
-                int currentProcessed = Interlocked.Increment(ref entriesProcessed);
-                if (currentProcessed % 1_000 == 0)
-                {
-                    await LogAsync($"Processed {currentProcessed} out of {entries.Length} patterns");
-                }
+            int currentProcessed = Interlocked.Increment(ref entriesProcessed);
+            if (currentProcessed % 1_000 == 0)
+            {
+                await LogAsync($"Generated diffs for {currentProcessed} out of {entries.Length} patterns");
             }
         });
     }
@@ -212,7 +212,19 @@ internal sealed class RegexDiffJob : JobBase
     {
         await LogAsync("Extracting SearchValues constructors from generated sources ...");
 
-        Parallel.ForEach(entries, static entry =>
+        await Parallel.ForEachAsync(entries, async (entry, _) =>
+        {
+            try
+            {
+                ExtractSearchValuesInfo(entry);
+            }
+            catch (Exception ex)
+            {
+                await LogAsync($"Failed to extract SearchValues: {ex}\n\n{entry.PrSource}");
+            }
+        });
+
+        static void ExtractSearchValuesInfo(RegexEntry entry)
         {
             string source = entry.PrSource;
 
@@ -276,7 +288,7 @@ internal sealed class RegexDiffJob : JobBase
 
             entry.SearchValuesOfChar = searchValuesOfChar.ToArray();
             entry.SearchValuesOfString = searchValuesOfString.ToArray();
-        });
+        }
 
         static string ParseCSharpLiteral(ReadOnlySpan<char> literal, out int indexOfEndingQuote)
         {
