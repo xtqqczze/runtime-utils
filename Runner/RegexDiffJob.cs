@@ -347,7 +347,12 @@ internal sealed class RegexDiffJob : JobBase
     private async Task UploadResultsAsync(RegexEntry[] entries)
     {
         Directory.CreateDirectory("Results");
-        File.WriteAllText("Results/Results.json", JsonSerializer.Serialize(entries, s_jsonOptions));
+
+        using (FileStream jsonFs = File.Create("Results/Results.json"))
+        {
+            JsonSerializer.Serialize(jsonFs, entries, s_jsonOptions);
+        }
+
         PendingTasks.Enqueue(ZipAndUploadArtifactAsync("Results", "Results"));
 
         if (entries.Any(e => e.ShortDiff is not null))
@@ -372,6 +377,11 @@ internal sealed class RegexDiffJob : JobBase
             foreach (RegexEntry entry in entries)
             {
                 if (entry.ShortDiff is not { } diff)
+                {
+                    continue;
+                }
+
+                if (sb.Length + diff.Length > maxMarkdownLength)
                 {
                     continue;
                 }
