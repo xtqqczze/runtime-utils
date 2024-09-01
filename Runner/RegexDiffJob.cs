@@ -295,7 +295,7 @@ internal sealed class RegexDiffJob : JobBase
                         'n' => '\n',
                         'f' => '\f',
                         'r' => '\r',
-                        'e' => '\e',
+                        'e' => (char)27,
                         '\\' => '\\',
                         '0' => '\0',
                         _ => throw new NotImplementedException(literal[i + 1].ToString())
