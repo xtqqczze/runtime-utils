@@ -1,5 +1,6 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
 using System.Globalization;
+using System.IO.Compression;
 using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
@@ -346,14 +347,14 @@ internal sealed class RegexDiffJob : JobBase
 
     private async Task UploadResultsAsync(RegexEntry[] entries)
     {
-        Directory.CreateDirectory("Results");
-
-        using (FileStream jsonFs = File.Create("Results/Results.json"))
+        using (ZipArchive archive = ZipFile.Open("Results.zip", ZipArchiveMode.Create))
         {
-            JsonSerializer.Serialize(jsonFs, entries, s_jsonOptions);
+            ZipArchiveEntry entry = archive.CreateEntry("Results.json", CompressionLevel.Optimal);
+            using Stream jsonEntryStream = entry.Open();
+            JsonSerializer.Serialize(jsonEntryStream, entries, s_jsonOptions);
         }
 
-        PendingTasks.Enqueue(ZipAndUploadArtifactAsync("Results", "Results"));
+        PendingTasks.Enqueue(UploadArtifactAsync("Results.zip"));
 
         if (entries.Any(e => e.ShortDiff is not null))
         {
