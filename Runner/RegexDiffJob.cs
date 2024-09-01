@@ -201,6 +201,8 @@ internal sealed class RegexDiffJob : JobBase
                 fullDiffLines.RemoveAll(ShouldSkipLine);
                 shortDiffLines.RemoveAll(ShouldSkipLine);
 
+                TrimExcessLeadingWhiteSpace(shortDiffLines);
+
                 entry.FullDiff = string.Join('\n', fullDiffLines);
                 entry.ShortDiff = string.Join('\n', shortDiffLines);
             }
@@ -221,6 +223,62 @@ internal sealed class RegexDiffJob : JobBase
                 line.StartsWith("---", StringComparison.Ordinal) ||
                 line.StartsWith("@@", StringComparison.Ordinal) ||
                 line.StartsWith("\\ No newline at end of file", StringComparison.Ordinal);
+        }
+
+        static void TrimExcessLeadingWhiteSpace(List<string> lines)
+        {
+            if (lines.Count == 0)
+                return;
+
+            if (lines[0].AsSpan().TrimEnd().Length == 0)
+            {
+                lines.RemoveAt(0);
+            }
+
+            if (lines.Count == 0)
+                return;
+
+            if (lines[^1].AsSpan().TrimEnd().Length == 0)
+            {
+                lines.RemoveAt(lines.Count - 1);
+            }
+
+            if (lines.Count == 0)
+                return;
+
+            int minOffset = lines.Where(l => l.Length > 0).Min(CountWhiteSpace);
+
+            if (minOffset <= 3)
+                return;
+
+            minOffset -= 2;
+
+            for (int i = 0; i < lines.Count; i++)
+            {
+                string line = lines[i];
+                if (line.Length > 0)
+                {
+                    lines[i] = line[0] is '+' or '-'
+                        ? $"{line[0]}{line.AsSpan(minOffset - 1)}"
+                        : line.Substring(minOffset);
+                }
+            }
+
+            static int CountWhiteSpace(string line)
+            {
+                int i = 0;
+                if (line.StartsWith('+') || line.StartsWith('-'))
+                {
+                    i++;
+                }
+
+                while (i < line.Length && char.IsWhiteSpace(line[i]))
+                {
+                    i++;
+                }
+
+                return i;
+            }
         }
     }
 
