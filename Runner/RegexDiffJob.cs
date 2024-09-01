@@ -34,7 +34,7 @@ internal sealed class RegexDiffJob : JobBase
         await RunProcessAsync("git", "checkout .", workDir: "runtime");
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
-        await RunProcessAsync("bash", $".dotnet/dotnet build src/libraries/System.Text.RegularExpressions/gen -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "pr", workDir: "runtime");
+        await RunProcessAsync("runtime/.dotnet/dotnet", $"build src/libraries/System.Text.RegularExpressions/gen -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "pr", workDir: "runtime");
 
         var prSources = await RunSourceGeneratorOnKnownPatternsAsync(knownPatterns, "pr");
 
@@ -137,7 +137,7 @@ internal sealed class RegexDiffJob : JobBase
 
         const string RegexTestsPath = "src/libraries/System.Text.RegularExpressions/tests/FunctionalTests";
         const string XUnitMethodName = "System.Text.RegularExpressions.Tests.InjectedGenerateAllSourcesTestClass.GenerateAllSourcesAsync";
-        await RunProcessAsync("bash", $".dotnet/dotnet build {RegexTestsPath} /t:Test -c Release /p:XUnitMethodName={XUnitMethodName}", logPrefix: $"Generating {branch}", workDir: "runtime");
+        await RunProcessAsync("runtime/.dotnet/dotnet", $"build {RegexTestsPath} /t:Test -c Release /p:XUnitMethodName={XUnitMethodName}", logPrefix: $"Generating {branch}", workDir: "runtime");
 
         EntryWithGeneratedSource[] generatedSources = JsonSerializer.Deserialize<EntryWithGeneratedSource[]>(File.ReadAllText(resultsPath), s_jsonOptions)!;
 
