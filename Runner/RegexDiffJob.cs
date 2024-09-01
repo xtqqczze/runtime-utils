@@ -87,7 +87,7 @@ internal sealed class RegexDiffJob : JobBase
                     }
 
                     const string JsonPath = @"{{{Path.GetFullPath(KnownPatternsPath)}}}";
-                    var regexEntries = System.Text.Json.JsonSerializer.Deserialize<RegexEntry[]>(System.IO.File.ReadAllText(jsonPath));
+                    var regexEntries = System.Text.Json.JsonSerializer.Deserialize<RegexEntry[]>(System.IO.File.ReadAllText(JsonPath));
                     int entriesProcessed = 0;
 
                     List<EntryWithGeneratedSource> sources = new();
