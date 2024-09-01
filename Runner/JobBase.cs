@@ -18,12 +18,12 @@ public abstract class JobBase
 
     private readonly CancellationTokenSource _jobCts = new(MaxJobDuration);
     private readonly string _jobId;
-    private readonly HttpClient _client;
     private readonly Channel<string> _channel;
     private readonly Stopwatch _lastLogEntry = new();
     private HardwareInfo? _hardwareInfo;
     private volatile bool _completed;
 
+    protected readonly HttpClient HttpClient;
     protected readonly Stopwatch JobStopwatch = Stopwatch.StartNew();
     protected CancellationToken JobTimeout => _jobCts.Token;
     public Dictionary<string, string> Metadata { get; }
@@ -72,7 +72,7 @@ public abstract class JobBase
 
     public JobBase(HttpClient client, Dictionary<string, string> metadata)
     {
-        _client = client;
+        HttpClient = client;
         Metadata = metadata;
         _jobId = metadata["JobId"];
 
@@ -131,7 +131,7 @@ public abstract class JobBase
         }
         catch { }
 
-        await _client.GetStringAsync($"Complete/{_jobId}", CancellationToken.None);
+        await HttpClient.GetStringAsync($"Complete/{_jobId}", CancellationToken.None);
     }
 
     protected async Task WaitForPendingTasksAsync()
@@ -407,7 +407,7 @@ public abstract class JobBase
         await using FileStream fs = File.OpenRead(path);
         using StreamContent content = new(fs);
 
-        using var response = await _client.PostAsync(
+        using var response = await HttpClient.PostAsync(
             $"Artifact/{_jobId}/{Uri.EscapeDataString(name)}",
             content,
             JobTimeout);
@@ -420,7 +420,7 @@ public abstract class JobBase
         {
             try
             {
-                using var response = await _client.PostAsJsonAsync($"{path}/{_jobId}{queryArgs}", value, JobTimeout);
+                using var response = await HttpClient.PostAsJsonAsync($"{path}/{_jobId}{queryArgs}", value, JobTimeout);
 
                 if (response.Headers.Contains("X-Job-Completed"))
                 {

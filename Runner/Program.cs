@@ -79,6 +79,7 @@ static async Task RunAsync(string[] args)
         nameof(FuzzLibrariesJob) => new FuzzLibrariesJob(client, metadata),
         nameof(RebaseJob) => new RebaseJob(client, metadata),
         nameof(BenchmarkLibrariesJob) => new BenchmarkLibrariesJob(client, metadata),
+        nameof(RegexDiffJob) => new RegexDiffJob(client, metadata),
         var type => throw new NotSupportedException(type),
     };
 
