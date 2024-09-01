@@ -67,7 +67,7 @@ internal sealed class RegexDiffJob : JobBase
     {
         await LogAsync($"Generating {branch} Regex sources ...");
 
-        const string TestFilePath = "src/libraries/System.Text.RegularExpressions/tests/FunctionalTests/RegexGeneratorParserTests.cs";
+        const string TestFilePath = "runtime/src/libraries/System.Text.RegularExpressions/tests/FunctionalTests/RegexGeneratorParserTests.cs";
 
         string resultsPath = Path.GetFullPath($"results-{branch}.json");
 
