@@ -197,6 +197,9 @@ internal sealed class RegexDiffJob : JobBase
                 File.Delete(mainFile);
                 File.Delete(prFile);
 
+                fullDiffLines.RemoveAll(ShouldSkipLine);
+                shortDiffLines.RemoveAll(ShouldSkipLine);
+
                 entry.FullDiff = string.Join('\n', fullDiffLines);
                 entry.ShortDiff = string.Join('\n', shortDiffLines);
             }
@@ -207,6 +210,17 @@ internal sealed class RegexDiffJob : JobBase
                 await LogAsync($"Generated diffs for {currentProcessed} out of {entries.Length} patterns");
             }
         });
+
+        static bool ShouldSkipLine(string line)
+        {
+            return
+                line.StartsWith("diff --git", StringComparison.Ordinal) ||
+                line.StartsWith("index ", StringComparison.Ordinal) ||
+                line.StartsWith("+++", StringComparison.Ordinal) ||
+                line.StartsWith("---", StringComparison.Ordinal) ||
+                line.StartsWith("@@", StringComparison.Ordinal) ||
+                line.StartsWith("\\ No newline at end of file", StringComparison.Ordinal);
+        }
     }
 
     private async Task ExtractSearchValuesInfoAsync(RegexEntry[] entries)
@@ -347,14 +361,17 @@ internal sealed class RegexDiffJob : JobBase
 
     private async Task UploadResultsAsync(RegexEntry[] entries)
     {
-        using (ZipArchive archive = ZipFile.Open("Results.zip", ZipArchiveMode.Create))
+        PendingTasks.Enqueue(Task.Run(async () =>
         {
-            ZipArchiveEntry entry = archive.CreateEntry("Results.json", CompressionLevel.Optimal);
-            using Stream jsonEntryStream = entry.Open();
-            JsonSerializer.Serialize(jsonEntryStream, entries, s_jsonOptions);
-        }
+            using (ZipArchive archive = ZipFile.Open("Results.zip", ZipArchiveMode.Create))
+            {
+                ZipArchiveEntry entry = archive.CreateEntry("Results.json", CompressionLevel.Optimal);
+                using Stream jsonEntryStream = entry.Open();
+                JsonSerializer.Serialize(jsonEntryStream, entries, s_jsonOptions);
+            }
 
-        PendingTasks.Enqueue(UploadArtifactAsync("Results.zip"));
+            await UploadArtifactAsync("Results.zip");
+        }));
 
         if (entries.Any(e => e.ShortDiff is not null))
         {
