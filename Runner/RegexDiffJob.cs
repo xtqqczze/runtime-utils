@@ -183,10 +183,10 @@ internal sealed class RegexDiffJob : JobBase
                 File.WriteAllText(prFile, prSource);
 
                 List<string> fullDiffLines = new();
-                await RunProcessAsync("git", $"diff --histogram -U1000000 {mainFile} {prFile}", fullDiffLines, suppressOutputLogs: true);
+                await RunProcessAsync("git", $"diff --histogram -U1000000 {mainFile} {prFile}", fullDiffLines, checkExitCode: false, suppressOutputLogs: true);
 
                 List<string> shortDiffLines = new();
-                await RunProcessAsync("git", $"diff --histogram {mainFile} {prFile}", shortDiffLines, suppressOutputLogs: true);
+                await RunProcessAsync("git", $"diff --histogram {mainFile} {prFile}", shortDiffLines, checkExitCode: false, suppressOutputLogs: true);
 
                 File.Delete(mainFile);
                 File.Delete(prFile);
