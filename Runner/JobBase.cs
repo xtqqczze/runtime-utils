@@ -24,10 +24,12 @@ public abstract class JobBase
     private volatile bool _completed;
 
     protected readonly HttpClient HttpClient;
-    protected readonly Stopwatch JobStopwatch = Stopwatch.StartNew();
+    protected readonly DateTime StartTime;
     protected CancellationToken JobTimeout => _jobCts.Token;
     public Dictionary<string, string> Metadata { get; }
     public readonly string OriginalWorkingDirectory = Environment.CurrentDirectory;
+
+    public TimeSpan ElapsedTime => DateTime.UtcNow - StartTime;
 
     public string? LastProgressSummary { get; set; }
 
@@ -75,12 +77,19 @@ public abstract class JobBase
         HttpClient = client;
         Metadata = metadata;
         _jobId = metadata["JobId"];
+        StartTime = new DateTime(long.Parse(Metadata["JobStartTime"]), DateTimeKind.Utc);
 
         _channel = Channel.CreateBounded<string>(new BoundedChannelOptions(100_000)
         {
             FullMode = BoundedChannelFullMode.DropOldest,
             SingleReader = true,
         });
+
+        if (StartTime >= DateTime.UtcNow)
+        {
+            _channel.Writer.TryWrite($"Start time ({StartTime.Ticks}) is after current time ({DateTime.UtcNow.Ticks})?");
+            StartTime = DateTime.UtcNow;
+        }
     }
 
     protected abstract Task RunJobCoreAsync();
@@ -183,7 +192,7 @@ public abstract class JobBase
 
         try
         {
-            TimeSpan elapsed = JobStopwatch.Elapsed;
+            TimeSpan elapsed = ElapsedTime;
             int hours = elapsed.Hours;
             int minutes = elapsed.Minutes;
             int seconds = elapsed.Seconds;
