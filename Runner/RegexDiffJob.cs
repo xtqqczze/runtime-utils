@@ -298,7 +298,7 @@ internal sealed class RegexDiffJob : JobBase
             indexOfEndingQuote = -1;
             StringBuilder sb = new();
 
-            for (int i = 0; i < literal.Length; i++)
+            for (int i = 1; i < literal.Length; i++)
             {
                 if (literal[i] == '\\' && (i + 1) < literal.Length)
                 {
