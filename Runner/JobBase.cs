@@ -333,7 +333,10 @@ public abstract class JobBase
         }
         catch (Exception ex)
         {
-            await LogAsync($"{logPrefix}{processLogs($"Failed to set process priority: {ex}")}");
+            if (!process.HasExited)
+            {
+                await LogAsync($"{logPrefix}{processLogs($"Failed to set process priority: {ex}")}");
+            }
         }
 
         await Task.WhenAll(
