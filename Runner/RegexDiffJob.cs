@@ -118,7 +118,7 @@ internal sealed class RegexDiffJob : JobBase
                         catch (Exception ex) when (ex.ToString().Contains("info SYSLIB1044", StringComparison.Ordinal)) { }
 
                         int currentProcessed = System.Threading.Interlocked.Increment(ref entriesProcessed);
-                        if (currentProcessed % 100 == 0)
+                        if (currentProcessed % 1_000 == 0)
                         {
                             System.Console.WriteLine($"Processed {currentProcessed} out of {regexEntries.Length} patterns");
                         }
@@ -168,6 +168,8 @@ internal sealed class RegexDiffJob : JobBase
     {
         await LogAsync("Calculating diffs in generated sources ...");
 
+        int entriesProcessed = 0;
+
         await Parallel.ForAsync(0, entries.Length, async (i, _) =>
         {
             RegexEntry entry = entries[i];
@@ -183,16 +185,24 @@ internal sealed class RegexDiffJob : JobBase
                 File.WriteAllText(prFile, prSource);
 
                 List<string> fullDiffLines = new();
-                await RunProcessAsync("git", $"diff --histogram -U1000000 {mainFile} {prFile}", fullDiffLines, checkExitCode: false, suppressOutputLogs: true);
+                await RunProcessAsync("git", $"diff --histogram -U1000000 {mainFile} {prFile}", fullDiffLines,
+                    checkExitCode: false, suppressOutputLogs: true, suppressStartingLog: true);
 
                 List<string> shortDiffLines = new();
-                await RunProcessAsync("git", $"diff --histogram {mainFile} {prFile}", shortDiffLines, checkExitCode: false, suppressOutputLogs: true);
+                await RunProcessAsync("git", $"diff --histogram {mainFile} {prFile}", shortDiffLines,
+                    checkExitCode: false, suppressOutputLogs: true, suppressStartingLog: true);
 
                 File.Delete(mainFile);
                 File.Delete(prFile);
 
                 entry.FullDiff = string.Join('\n', fullDiffLines);
                 entry.ShortDiff = string.Join('\n', shortDiffLines);
+
+                int currentProcessed = Interlocked.Increment(ref entriesProcessed);
+                if (currentProcessed % 1_000 == 0)
+                {
+                    await LogAsync($"Processed {currentProcessed} out of {entries.Length} patterns");
+                }
             }
         });
     }

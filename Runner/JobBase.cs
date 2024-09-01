@@ -291,6 +291,7 @@ public abstract class JobBase
         bool checkExitCode = true,
         Func<string, string>? processLogs = null,
         bool suppressOutputLogs = false,
+        bool suppressStartingLog = false,
         ProcessPriorityClass priority = ProcessPriorityClass.Normal,
         CancellationToken cancellationToken = default)
     {
@@ -301,12 +302,15 @@ public abstract class JobBase
             logPrefix = $"[{logPrefix}] ";
         }
 
-        if (suppressOutputLogs)
+        if (suppressOutputLogs && checkExitCode)
         {
-            output ??= new();
+            output ??= [];
         }
 
-        await LogAsync($"{logPrefix}{processLogs($"Running '{fileName} {arguments}'{(workDir is null ? null : $" from '{workDir}'")}")}");
+        if (!suppressStartingLog)
+        {
+            await LogAsync($"{logPrefix}{processLogs($"Running '{fileName} {arguments}'{(workDir is null ? null : $" from '{workDir}'")}")}");
+        }
 
         using var process = new Process
         {
