@@ -513,7 +513,8 @@ internal sealed class RegexDiffJob : JobBase
 
         string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this,
             $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}",
-            $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}");
+            $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}",
+            count: 1_000_000);
 
         PendingTasks.Enqueue(UploadTextArtifactAsync("JitAnalyzeSummary.txt", diffAnalyzeSummary));
 
