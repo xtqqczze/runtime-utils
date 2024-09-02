@@ -21,7 +21,7 @@ internal sealed class RegexDiffJob : JobBase
     {
         await ChangeWorkingDirectoryToRamDiskAsync();
 
-        KnownPattern[] knownPatterns = await DownloadKnownPatternsAsync();
+        await DownloadKnownPatternsAsync();
 
         await JitDiffJob.CloneRuntimeAndSetupToolsAsync(this);
 
@@ -45,10 +45,10 @@ internal sealed class RegexDiffJob : JobBase
 
         await RuntimeHelpers.InstallRuntimeDotnetSdkAsync(this);
 
-        await RunJitDiffAsync(knownPatterns, entries);
+        await RunJitDiffAsync(entries);
     }
 
-    private async Task<KnownPattern[]> DownloadKnownPatternsAsync()
+    private async Task DownloadKnownPatternsAsync()
     {
         KnownPattern[]? knownPatterns = await HttpClient.GetFromJsonAsync<KnownPattern[]>(
             "https://raw.githubusercontent.com/dotnet/runtime-assets/main/src/System.Text.RegularExpressions.TestData/Regex_RealWorldPatterns.json",
@@ -70,8 +70,6 @@ internal sealed class RegexDiffJob : JobBase
             .ToArray();
 
         File.WriteAllText(KnownPatternsPath, JsonSerializer.Serialize(knownPatterns, s_jsonOptions));
-
-        return knownPatterns;
     }
 
     private async Task<Dictionary<KnownPattern, string>> RunSourceGeneratorOnKnownPatternsAsync(string branch)
@@ -483,7 +481,7 @@ internal sealed class RegexDiffJob : JobBase
         }
     }
 
-    private async Task RunJitDiffAsync(KnownPattern[] knownPatterns, RegexEntry[] entries)
+    private async Task RunJitDiffAsync(RegexEntry[] entries)
     {
         string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
         string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
@@ -530,7 +528,7 @@ internal sealed class RegexDiffJob : JobBase
                 int offsetOfNamespace = source.AsSpan(offsetOfPartialClass).IndexOf(Namespace, StringComparison.Ordinal);
 
                 source = source.Remove(offsetOfPartialClass, offsetOfNamespace);
-                source = source.Replace(Namespace, "namespace Generated", StringComparison.Ordinal);
+                source = source.Replace(Namespace, $"namespace Generated_{i}", StringComparison.Ordinal);
 
                 File.WriteAllText($"{directory}/Regex{i}.cs", source);
             });
@@ -542,11 +540,11 @@ internal sealed class RegexDiffJob : JobBase
 
         string? TryGetExtraInfo(string name)
         {
-            int offset = name.IndexOf("KnownRegex_", StringComparison.Ordinal);
+            int offset = name.IndexOf("Generated_", StringComparison.Ordinal);
 
             if (offset >= 0 && int.TryParse(name.Substring(offset).Split('_')[1], out int regexIndex))
             {
-                return GetGeneratedRegexCodeBlock(knownPatterns[regexIndex]);
+                return GetGeneratedRegexCodeBlock(entries[regexIndex].Regex);
             }
 
             return null;
