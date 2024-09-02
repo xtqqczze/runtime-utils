@@ -44,7 +44,7 @@ internal sealed class RegexDiffJob : JobBase
         await UploadResultsAsync(entries);
     }
 
-    private async Task DownloadKnownPatternsAsync()
+    private async Task<KnownPattern[]> DownloadKnownPatternsAsync()
     {
         KnownPattern[]? knownPatterns = await HttpClient.GetFromJsonAsync<KnownPattern[]>(
             "https://raw.githubusercontent.com/dotnet/runtime-assets/main/src/System.Text.RegularExpressions.TestData/Regex_RealWorldPatterns.json",
@@ -59,7 +59,15 @@ internal sealed class RegexDiffJob : JobBase
 
         await LogAsync($"Using {knownPatterns.Length} distinct patterns");
 
+        knownPatterns = knownPatterns
+            .OrderByDescending(p => p.Count)
+            .ThenBy(p => p.Pattern, StringComparer.Ordinal)
+            .ThenBy(p => p.Options)
+            .ToArray();
+
         File.WriteAllText(KnownPatternsPath, JsonSerializer.Serialize(knownPatterns, s_jsonOptions));
+
+        return knownPatterns;
     }
 
     private async Task<Dictionary<KnownPattern, string>> RunSourceGeneratorOnKnownPatternsAsync(string branch)
@@ -91,15 +99,16 @@ internal sealed class RegexDiffJob : JobBase
 
                     List<EntryWithGeneratedSource> sources = new();
 
-                    await Parallel.ForEachAsync(regexEntries, async (entry, _) =>
+                    await Parallel.ForAsync(0, regexEntries.Length, async (i, _) =>
                     {
+                        RegexEntry entry = regexEntries[i];
                         string program =
                             $$"""
                             using System.Text.RegularExpressions;
-                            partial class C
+                            partial class C{{i}}
                             {
                                 [GeneratedRegex({{SymbolDisplay.FormatLiteral(entry.Pattern, quote: true)}}, (RegexOptions){{(int)entry.Options}})]
-                                public static partial Regex Valid();
+                                public static partial Regex KnownRegex_{{i}}();
                             }
                             """;
 
@@ -155,6 +164,8 @@ internal sealed class RegexDiffJob : JobBase
                 PrSource = prSources[main.Key]
             })
             .OrderByDescending(r => r.Regex.Count)
+            .ThenBy(r => r.Regex.Pattern, StringComparer.Ordinal)
+            .ThenBy(r => r.Regex.Options)
             .ToArray();
 
         await LogAsync($"Combined {mainSources.Count} main sources and {prSources.Count} pr sources into {entries.Length} entries");
