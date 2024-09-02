@@ -1,13 +1,8 @@
 ﻿using Microsoft.CodeAnalysis.CSharp;
 using System.Globalization;
 using System.IO.Compression;
-using System.Net;
-using System.Net.Http.Json;
-using System.Text;
-using System.Text.Json;
-using System.Text.RegularExpressions;
 
-namespace Runner;
+namespace Runner.Jobs;
 
 internal sealed class RegexDiffJob : JobBase
 {
@@ -374,9 +369,9 @@ internal sealed class RegexDiffJob : JobBase
 
             for (int i = 1; i < literal.Length; i++)
             {
-                if (literal[i] == '\\' && (i + 1) < literal.Length)
+                if (literal[i] == '\\' && i + 1 < literal.Length)
                 {
-                    if (literal[i + 1] == 'u' && (i + 5) < literal.Length)
+                    if (literal[i + 1] == 'u' && i + 5 < literal.Length)
                     {
                         char unicode = (char)ushort.Parse(literal.Slice(i + 2, 4), NumberStyles.HexNumber);
                         sb.Append(unicode);

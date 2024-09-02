@@ -1,7 +1,5 @@
 ﻿using Hardware.Info;
 using System.Diagnostics.CodeAnalysis;
-using System.Diagnostics;
-using System.Net.Http.Json;
 using System.Runtime.InteropServices;
 using System.Threading.Channels;
 using System.IO.Compression;

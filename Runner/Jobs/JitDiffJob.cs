@@ -1,4 +1,4 @@
-﻿namespace Runner;
+﻿namespace Runner.Jobs;
 
 internal sealed class JitDiffJob : JobBase
 {

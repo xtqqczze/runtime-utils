@@ -1,7 +1,6 @@
 ﻿using System.IO.Compression;
-using System.Text.RegularExpressions;
 
-namespace Runner;
+namespace Runner.Jobs;
 
 internal sealed partial class FuzzLibrariesJob : JobBase
 {

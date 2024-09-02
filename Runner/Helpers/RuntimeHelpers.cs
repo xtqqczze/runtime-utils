@@ -1,4 +1,4 @@
-﻿namespace Runner;
+﻿namespace Runner.Helpers;
 
 internal static class RuntimeHelpers
 {
