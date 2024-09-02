@@ -1,4 +1,5 @@
-﻿using Microsoft.CodeAnalysis.CSharp;
+﻿using Microsoft.CodeAnalysis;
+using Microsoft.CodeAnalysis.CSharp;
 using System.Globalization;
 using System.IO.Compression;
 
@@ -20,18 +21,17 @@ internal sealed class RegexDiffJob : JobBase
     {
         await ChangeWorkingDirectoryToRamDiskAsync();
 
-        await DownloadKnownPatternsAsync();
+        KnownPattern[] knownPatterns = await DownloadKnownPatternsAsync();
 
-        await RuntimeHelpers.CloneRuntimeAsync(this);
+        await JitDiffJob.CloneRuntimeAndSetupToolsAsync(this);
 
-        await RunProcessAsync("bash", $"build.sh clr+libs -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "main", workDir: "runtime");
+        await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main");
 
         var mainSources = await RunSourceGeneratorOnKnownPatternsAsync("main");
 
-        await RunProcessAsync("git", "checkout .", workDir: "runtime");
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
-        await RunProcessAsync("runtime/.dotnet/dotnet", $"build src/libraries/System.Text.RegularExpressions/gen -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "pr", workDir: "runtime");
+        await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr");
 
         var prSources = await RunSourceGeneratorOnKnownPatternsAsync("pr");
 
@@ -41,7 +41,11 @@ internal sealed class RegexDiffJob : JobBase
 
         await ExtractSearchValuesInfoAsync(entries);
 
-        await UploadResultsAsync(entries);
+        await UploadSourceGeneratorResultsAsync(entries);
+
+        await RuntimeHelpers.InstallRuntimeDotnetSdkAsync(this);
+
+        await RunJitDiffAsync(knownPatterns, entries);
     }
 
     private async Task<KnownPattern[]> DownloadKnownPatternsAsync()
@@ -405,7 +409,7 @@ internal sealed class RegexDiffJob : JobBase
         }
     }
 
-    private async Task UploadResultsAsync(RegexEntry[] entries)
+    private async Task UploadSourceGeneratorResultsAsync(RegexEntry[] entries)
     {
         PendingTasks.Enqueue(Task.Run(async () =>
         {
@@ -452,25 +456,10 @@ internal sealed class RegexDiffJob : JobBase
 
                 int startLength = sb.Length;
 
-                string options = entry.Regex.Options.ToString();
-                options = int.TryParse(options, out _)
-                    ? $"(RegexOptions){(int)entry.Regex.Options}"
-                    : string.Join(" | ", options.Split(", ").Select(opt => $"{nameof(RegexOptions)}.{opt}"));
-
-                string patternLiteral = SymbolDisplay.FormatLiteral(entry.Regex.Pattern, quote: true);
-
-                string friendlyName = patternLiteral;
-                if (friendlyName.Length > 50)
-                {
-                    friendlyName = $"{friendlyName.AsSpan(0, 45)} ...\"";
-                }
-
                 sb.AppendLine("<details>");
-                sb.AppendLine($"<summary>{WebUtility.HtmlEncode(friendlyName)} ({entry.Regex.Count} uses)</summary>");
+                sb.AppendLine($"<summary>{GetSummaryFriendlyName(entry.Regex)}</summary>");
                 sb.AppendLine();
-                sb.AppendLine("```c#");
-                sb.AppendLine($"[GeneratedRegex({patternLiteral}, {options})]");
-                sb.AppendLine("```");
+                sb.AppendLine(GetGeneratedRegexCodeBlock(entry.Regex));
                 sb.AppendLine();
                 sb.AppendLine("```diff");
                 sb.AppendLine(diff);
@@ -492,6 +481,126 @@ internal sealed class RegexDiffJob : JobBase
 
             return sb.ToString();
         }
+    }
+
+    private async Task RunJitDiffAsync(KnownPattern[] knownPatterns, RegexEntry[] entries)
+    {
+        string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
+        string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
+
+        await Task.WhenAll(
+            JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-main", "clr-checked-main", JitDiffJob.DiffsMainDirectory, mainAssembly),
+            JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-pr", "clr-checked-pr", JitDiffJob.DiffsPrDirectory, prAssembly));
+
+        string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this,
+            $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}",
+            $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}");
+
+        PendingTasks.Enqueue(UploadTextArtifactAsync("JitAnalyzeSummary.txt", diffAnalyzeSummary));
+
+        await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: true, TryGetExtraInfo);
+        await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: false, TryGetExtraInfo);
+
+        async Task<string> GenerateRegexAssemblyAsync(bool baseline)
+        {
+            string suffix = baseline ? "Main" : "Pr";
+
+            string directory = $"KnownPatterns{suffix}";
+            Directory.CreateDirectory(directory);
+
+            File.WriteAllText($"{directory}/KnownPatterns.csproj",
+                $"""
+                <Project Sdk="Microsoft.NET.Sdk">
+                  <PropertyGroup>
+                    <OutputType>Library</OutputType>
+                    <TargetFramework>net{RuntimeHelpers.GetDotnetVersion()}.0</TargetFramework>
+                    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+                  </PropertyGroup>
+                </Project>
+                """);
+
+            Parallel.For(0, entries.Length, i =>
+            {
+                const string Namespace = "namespace System.Text.RegularExpressions.Generated";
+
+                RegexEntry entry = entries[i];
+                string source = baseline ? entry.MainSource : entry.PrSource;
+
+                int offsetOfPartialClass = source.IndexOf("partial class C", StringComparison.Ordinal);
+                int offsetOfNamespace = source.AsSpan(offsetOfPartialClass).IndexOf(Namespace, StringComparison.Ordinal);
+
+                source = source.Remove(offsetOfPartialClass, offsetOfNamespace);
+                source = source.Replace(Namespace, "namespace Generated", StringComparison.Ordinal);
+
+                File.WriteAllText($"{directory}/Regex{i}.cs", source);
+            });
+
+            await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
+
+            return $"{directory}/artifacts/KnownPatterns.dll";
+        }
+
+        string? TryGetExtraInfo(string name)
+        {
+            int offset = name.IndexOf("KnownRegex_", StringComparison.Ordinal);
+
+            if (offset >= 0 && int.TryParse(name.Substring(offset).Split('_')[1], out int regexIndex))
+            {
+                return GetGeneratedRegexCodeBlock(knownPatterns[regexIndex]);
+            }
+
+            return null;
+        }
+    }
+
+    private async Task UploadJitDiffExamplesAsync(string diffAnalyzeSummary, bool regressions, Func<string, string?>? tryGetExtraInfo = null)
+    {
+        var (diffs, noisyDiffsRemoved) = await JitDiffUtils.GetDiffMarkdownAsync(
+            this,
+            JitDiffUtils.ParseDiffAnalyzeEntries(diffAnalyzeSummary, regressions),
+            tryGetExtraInfo,
+            maxCount: 100);
+
+        string changes = JitDiffUtils.GetCommentMarkdown(diffs, GitHubHelpers.GistLengthLimit, regressions, out _);
+
+        await LogAsync($"Found {diffs.Length} changes, comment length={changes.Length} for {nameof(regressions)}={regressions}");
+
+        if (changes.Length != 0)
+        {
+            if (noisyDiffsRemoved)
+            {
+                changes = $"{changes}\n\nNote: some changes were skipped as they were likely noise.";
+            }
+
+            PendingTasks.Enqueue(UploadTextArtifactAsync($"JitDiff{(regressions ? "Regressions" : "Improvements")}.md", changes));
+        }
+    }
+
+    private static string GetSummaryFriendlyName(KnownPattern regex, int lengthLimit = 50)
+    {
+        string patternLiteral = SymbolDisplay.FormatLiteral(regex.Pattern, quote: true);
+
+        if (patternLiteral.Length > lengthLimit)
+        {
+            patternLiteral = $"{patternLiteral.AsSpan(0, lengthLimit - 5)} ...\"";
+        }
+
+        return $"{WebUtility.HtmlEncode(patternLiteral)} ({regex.Count} uses)";
+    }
+
+    private static string GetGeneratedRegexCodeBlock(KnownPattern regex)
+    {
+        string options = regex.Options.ToString();
+        options = int.TryParse(options, out _)
+            ? $"(RegexOptions){(int)regex.Options}"
+            : string.Join(" | ", options.Split(", ").Select(opt => $"{nameof(RegexOptions)}.{opt}"));
+
+        return
+            $"""
+            ```c#
+            [GeneratedRegex({SymbolDisplay.FormatLiteral(regex.Pattern, quote: true)}, {options})]
+            ```
+            """;
     }
 
     private record KnownPattern(string Pattern, RegexOptions Options, int Count);

@@ -128,10 +128,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
             filter = $"*{filter}*";
         }
 
-        // "version": "9.0.100-preview.5.24307.3",
-        char dotnetVersion = File.ReadAllLines("runtime/global.json")
-            .First(line => line.Contains("version", StringComparison.OrdinalIgnoreCase))
-            .Split(':')[1].TrimStart(' ', '"')[0];
+        int dotnetVersion = RuntimeHelpers.GetDotnetVersion();
 
         string corerunMain = Path.GetFullPath("artifacts-main/corerun");
         string corerunPr = Path.GetFullPath("artifacts-pr/corerun");

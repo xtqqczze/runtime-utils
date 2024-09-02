@@ -31,15 +31,15 @@ public abstract class JobBase
 
     public string? LastProgressSummary { get; set; }
 
-    protected readonly ConcurrentQueue<Task> PendingTasks = new();
+    public readonly ConcurrentQueue<Task> PendingTasks = new();
 
     public string CustomArguments => Metadata["CustomArguments"];
     public string SourceRepo => Metadata["PrRepo"];
     public string SourceBranch => Metadata["PrBranch"];
 
-    protected bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
+    public bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
 
-    protected string GetArgument(string argument, string @default)
+    public string GetArgument(string argument, string @default)
     {
         return TryGetArgument(argument, out string? value)
             ? value
@@ -149,7 +149,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
+    public async Task ZipAndUploadArtifactAsync(string zipFileName, string folderPath)
     {
         zipFileName = $"{zipFileName}.zip";
         string zipFilePath = Path.GetFullPath(zipFileName);
@@ -397,7 +397,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task UploadTextArtifactAsync(string fileName, string contents)
+    public async Task UploadTextArtifactAsync(string fileName, string contents)
     {
         string filePath = Path.Combine(Path.GetTempPath(), fileName);
         try
@@ -412,7 +412,7 @@ public abstract class JobBase
         }
     }
 
-    protected async Task UploadArtifactAsync(string path, string? fileName = null)
+    public async Task UploadArtifactAsync(string path, string? fileName = null)
     {
         string name = fileName ?? Path.GetFileName(path);
 

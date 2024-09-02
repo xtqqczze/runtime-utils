@@ -150,4 +150,12 @@ internal static class RuntimeHelpers
 
         await job.RunProcessAsync("cp", $"-r {BaseDirectory}/{folder}/. {destination}", logPrefix: logPrefix);
     }
+
+    public static int GetDotnetVersion()
+    {
+        // "version": "9.0.100-preview.5.24307.3", => 9
+        return File.ReadAllLines("runtime/global.json")
+            .First(line => line.Contains("version", StringComparison.OrdinalIgnoreCase))
+            .Split(':')[1].TrimStart(' ', '"')[0] - '0';
+    }
 }
