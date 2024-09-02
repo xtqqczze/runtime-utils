@@ -483,8 +483,15 @@ internal sealed class RegexDiffJob : JobBase
 
     private async Task RunJitDiffAsync(RegexEntry[] entries)
     {
+        bool skipJitDiff = TryGetFlag("SkipJitDiff");
+
         string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
         string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
+
+        if (skipJitDiff)
+        {
+            return;
+        }
 
         await Task.WhenAll(
             JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-main", "clr-checked-main", JitDiffJob.DiffsMainDirectory, mainAssembly),
@@ -536,6 +543,11 @@ internal sealed class RegexDiffJob : JobBase
             if (TryGetFlag("UploadTestAssembly"))
             {
                 await ZipAndUploadArtifactAsync(directory, directory);
+            }
+
+            if (skipJitDiff)
+            {
+                return string.Empty;
             }
 
             await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
