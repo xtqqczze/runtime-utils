@@ -492,12 +492,20 @@ internal sealed class RegexDiffJob : JobBase
 
         PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs", JitDiffJob.DiffsDirectory));
 
+        PendingTasks.Enqueue(Task.Run(async () =>
+        {
+            string shortAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this,
+                $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}",
+                $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}",
+                count: 100);
+
+            await UploadTextArtifactAsync("JitAnalyzeSummary.txt", shortAnalyzeSummary);
+        }));
+
         string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this,
             $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}",
             $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}",
             count: 1_000_000);
-
-        PendingTasks.Enqueue(UploadTextArtifactAsync("JitAnalyzeSummary.txt", diffAnalyzeSummary));
 
         await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: true, TryGetExtraInfo);
         await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: false, TryGetExtraInfo);
