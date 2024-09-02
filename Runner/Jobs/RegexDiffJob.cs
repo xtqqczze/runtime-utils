@@ -503,7 +503,7 @@ internal sealed class RegexDiffJob : JobBase
         {
             string suffix = baseline ? "Main" : "Pr";
 
-            string directory = $"KnownPatterns{suffix}";
+            string directory = $"KnownPatternsProject{suffix}";
             Directory.CreateDirectory(directory);
 
             File.WriteAllText($"{directory}/KnownPatterns.csproj",
@@ -532,6 +532,11 @@ internal sealed class RegexDiffJob : JobBase
 
                 File.WriteAllText($"{directory}/Regex{i}.cs", source);
             });
+
+            if (TryGetFlag("UploadTestAssembly"))
+            {
+                await ZipAndUploadArtifactAsync(directory, directory);
+            }
 
             await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
 
