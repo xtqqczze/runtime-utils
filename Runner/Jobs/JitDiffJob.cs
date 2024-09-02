@@ -189,7 +189,7 @@ internal sealed class JitDiffJob : JobBase
         }
 
         const string MainDasmDirectory = $"{DiffsMainDirectory}/{DasmSubdirectory}";
-        const string PrDasmDirectory = $"{DiffsMainDirectory}/{DasmSubdirectory}";
+        const string PrDasmDirectory = $"{DiffsPrDirectory}/{DasmSubdirectory}";
 
         bool noisyMethodsRemoved = false;
         bool includeKnownNoise = TryGetFlag("includeKnownNoise");
