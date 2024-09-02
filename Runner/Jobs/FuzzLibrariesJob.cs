@@ -102,6 +102,8 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
     private async Task<bool> RunFuzzerAsync(string fuzzerName, int durationSeconds)
     {
+        Stopwatch stopwatch = Stopwatch.StartNew();
+
         string nameWithoutFuzzerSuffix = fuzzerName.EndsWith("Fuzzer", StringComparison.OrdinalIgnoreCase)
             ? fuzzerName.Substring(0, fuzzerName.Length - "Fuzzer".Length)
             : fuzzerName;
@@ -134,7 +136,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
         using CancellationTokenSource failureCts = new();
         int failureStackUploaded = 0;
 
-        await Parallel.ForEachAsync(Enumerable.Range(1, parallelism), JobTimeout, async (i, _) =>
+        Task forEachAsyncTask = Parallel.ForEachAsync(Enumerable.Range(1, parallelism), JobTimeout, async (i, _) =>
         {
             List<string> output = [];
             string number = i.ToString().PadLeft(parallelism.ToString().Length, '0');
@@ -175,6 +177,23 @@ internal sealed partial class FuzzLibrariesJob : JobBase
                 failureCts.Cancel();
             }
         });
+
+        try
+        {
+            using var timer = new PeriodicTimer(TimeSpan.FromSeconds(0.5));
+
+            while (!forEachAsyncTask.IsCompleted && await timer.WaitForNextTickAsync(failureCts.Token))
+            {
+                int remaining = durationSeconds - (int)stopwatch.Elapsed.TotalSeconds;
+                if (remaining > 0)
+                {
+                    LastProgressSummary = $"Running {nameWithoutFuzzerSuffix}. Estimated time: {remaining / 60} min";
+                }
+            }
+        }
+        catch { }
+
+        await forEachAsyncTask;
 
         if (Directory.EnumerateFiles(inputsDirectory).Any())
         {
