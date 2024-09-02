@@ -505,7 +505,7 @@ internal sealed class RegexDiffJob : JobBase
         string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this,
             $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}",
             $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}",
-            count: 1_000_000);
+            count: 1_000);
 
         await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: true, TryGetExtraInfo);
         await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: false, TryGetExtraInfo);
@@ -566,26 +566,32 @@ internal sealed class RegexDiffJob : JobBase
 
         string? TryGetExtraInfo(string name)
         {
+            // Generated_10485.KnownRegex_10533_0+RunnerFactory+Runner:TryMatchAtCurrentPosition(System.ReadOnlySpan`1[ushort]):ubyte:this
             int offset = name.IndexOf("Generated_", StringComparison.Ordinal);
 
-            if (offset >= 0 && int.TryParse(name.Substring(offset).Split('_')[1], out int regexIndex))
+            if (offset >= 0)
             {
-                return GetGeneratedRegexCodeBlock(entries[regexIndex].Regex);
+                ReadOnlySpan<char> number = name.AsSpan(offset + "Generated_".Length);
+                int numberLength = number.IndexOfAnyExceptInRange('0', '9');
+                if (numberLength > 0 && int.TryParse(number.Slice(0, numberLength), out int regexIndex))
+                {
+                    return GetGeneratedRegexCodeBlock(entries[regexIndex].Regex);
+                }
             }
 
             return null;
         }
     }
 
-    private async Task UploadJitDiffExamplesAsync(string diffAnalyzeSummary, bool regressions, Func<string, string?>? tryGetExtraInfo = null)
+    private async Task UploadJitDiffExamplesAsync(string diffAnalyzeSummary, bool regressions, Func<string, string?> tryGetExtraInfo)
     {
         var (diffs, noisyDiffsRemoved) = await JitDiffUtils.GetDiffMarkdownAsync(
             this,
             JitDiffUtils.ParseDiffAnalyzeEntries(diffAnalyzeSummary, regressions),
             tryGetExtraInfo,
-            maxCount: 100);
+            maxCount: 1_000);
 
-        string changes = JitDiffUtils.GetCommentMarkdown(diffs, GitHubHelpers.GistLengthLimit, regressions, out _);
+        string changes = JitDiffUtils.GetCommentMarkdown(diffs, GitHubHelpers.GistLengthLimit, regressions, out bool truncated);
 
         await LogAsync($"Found {diffs.Length} changes, comment length={changes.Length} for {nameof(regressions)}={regressions}");
 
@@ -597,6 +603,12 @@ internal sealed class RegexDiffJob : JobBase
             }
 
             PendingTasks.Enqueue(UploadTextArtifactAsync($"JitDiff{(regressions ? "Regressions" : "Improvements")}.md", changes));
+
+            if (truncated)
+            {
+                changes = JitDiffUtils.GetCommentMarkdown(diffs, lengthLimit: 100 * 1024 * 1024, regressions, out _);
+                PendingTasks.Enqueue(UploadTextArtifactAsync($"LongJitDiff{(regressions ? "Regressions" : "Improvements")}.md", changes));
+            }
         }
     }
 

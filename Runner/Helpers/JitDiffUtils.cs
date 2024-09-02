@@ -138,79 +138,89 @@ internal static partial class JitDiffUtils
         const string MainDasmDirectory = $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}";
         const string PrDasmDirectory = $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}";
 
-        bool noisyMethodsRemoved = false;
         bool includeKnownNoise = job.TryGetFlag("includeKnownNoise");
         bool includeRemovedMethod = job.TryGetFlag("includeRemovedMethodImprovements");
         bool IncludeNewMethod = job.TryGetFlag("includeNewMethodRegressions");
 
-        var result = await diffs
-            .ToAsyncEnumerable()
-            .Where(diff => includeRemovedMethod || !IsRemovedMethod(diff.Description))
-            .Where(diff => IncludeNewMethod || !IsNewMethod(diff.Description))
-            .SelectAwait(async diff =>
+        bool noisyMethodsRemoved = false;
+        string?[] results = new string[diffs.Length];
+
+        await Parallel.ForAsync(0, diffs.Length, async (i, _) =>
+        {
+            var diff = diffs[i];
+
+            if (!includeRemovedMethod && IsRemovedMethod(diff.Description))
             {
-                string mainDiffsFile = $"{MainDasmDirectory}/{diff.DasmFile}";
-                string prDiffsFile = $"{PrDasmDirectory}/{diff.DasmFile}";
+                return;
+            }
 
-                await job.LogAsync($"Generating diffs for {diff.Name}");
+            if (!IncludeNewMethod && IsNewMethod(diff.Description))
+            {
+                return;
+            }
 
-                StringBuilder sb = new();
+            string mainDiffsFile = $"{MainDasmDirectory}/{diff.DasmFile}";
+            string prDiffsFile = $"{PrDasmDirectory}/{diff.DasmFile}";
 
-                sb.AppendLine("<details>");
-                sb.AppendLine($"<summary>{diff.Description} - {diff.Name}</summary>");
+            await job.LogAsync($"Generating diffs for {diff.Name}");
+
+            StringBuilder sb = new();
+
+            sb.AppendLine("<details>");
+            sb.AppendLine($"<summary>{diff.Description} - {diff.Name}</summary>");
+            sb.AppendLine();
+
+            if (tryGetExtraInfo?.Invoke(diff.Name) is { } extraInfo)
+            {
+                sb.AppendLine(extraInfo);
                 sb.AppendLine();
+            }
 
-                if (tryGetExtraInfo?.Invoke(diff.Name) is { } extraInfo)
+            sb.AppendLine("```diff");
+
+            using var baseFile = new TempFile("txt");
+            using var prFile = new TempFile("txt");
+
+            await File.WriteAllTextAsync(baseFile.Path, await TryGetMethodDumpAsync(mainDiffsFile, diff.Name));
+            await File.WriteAllTextAsync(prFile.Path, await TryGetMethodDumpAsync(prDiffsFile, diff.Name));
+
+            List<string> lines = await GitHelper.DiffAsync(job, baseFile.Path, prFile.Path, fullContext: true);
+
+            if (lines.Count == 0)
+            {
+                return;
+            }
+
+            foreach (string line in lines)
+            {
+                if (line.StartsWith("; ============================================================", StringComparison.Ordinal))
                 {
-                    sb.AppendLine(extraInfo);
-                    sb.AppendLine();
+                    continue;
                 }
 
-                sb.AppendLine("```diff");
-
-                using var baseFile = new TempFile("txt");
-                using var prFile = new TempFile("txt");
-
-                await File.WriteAllTextAsync(baseFile.Path, await JitDiffUtils.TryGetMethodDumpAsync(mainDiffsFile, diff.Name));
-                await File.WriteAllTextAsync(prFile.Path, await JitDiffUtils.TryGetMethodDumpAsync(prDiffsFile, diff.Name));
-
-                List<string> lines = await GitHelper.DiffAsync(job, baseFile.Path, prFile.Path, fullContext: true);
-
-                if (lines.Count == 0)
+                if (!includeKnownNoise && LineIsIndicativeOfKnownNoise(line.AsSpan().TrimStart()))
                 {
-                    return string.Empty;
-                }
-                else
-                {
-                    foreach (string line in lines)
-                    {
-                        if (line.StartsWith("; ============================================================", StringComparison.Ordinal))
-                        {
-                            continue;
-                        }
-
-                        if (!includeKnownNoise && LineIsIndicativeOfKnownNoise(line.AsSpan().TrimStart()))
-                        {
-                            noisyMethodsRemoved = true;
-                            return string.Empty;
-                        }
-
-                        sb.AppendLine(line);
-                    }
+                    noisyMethodsRemoved = true;
+                    return;
                 }
 
-                sb.AppendLine("```");
-                sb.AppendLine();
-                sb.AppendLine("</details>");
-                sb.AppendLine();
+                sb.AppendLine(line);
+            }
 
-                return sb.ToString();
-            })
-            .Where(diff => !string.IsNullOrEmpty(diff))
+            sb.AppendLine("```");
+            sb.AppendLine();
+            sb.AppendLine("</details>");
+            sb.AppendLine();
+
+            results[i] = sb.ToString();
+        });
+
+        results = results
+            .Where(r => !string.IsNullOrEmpty(r))
             .Take(maxCount)
-            .ToArrayAsync();
+            .ToArray();
 
-        return (result, noisyMethodsRemoved);
+        return (results, noisyMethodsRemoved)!;
 
         static bool IsRemovedMethod(ReadOnlySpan<char> description) =>
             description.Contains("-100.", StringComparison.Ordinal);
