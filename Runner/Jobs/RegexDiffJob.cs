@@ -533,6 +533,9 @@ internal sealed class RegexDiffJob : JobBase
                 source = source.Remove(offsetOfPartialClass, offsetOfNamespace);
                 source = source.Replace(Namespace, $"namespace Generated_{i}", StringComparison.Ordinal);
 
+                source = source.Replace("file sealed class", "public sealed class", StringComparison.Ordinal);
+                source = source.Replace("file static class", "internal static class", StringComparison.Ordinal);
+
                 File.WriteAllText($"{directory}/Regex{i}.cs", source);
             });
 
