@@ -15,8 +15,6 @@ internal sealed class RegexDiffJob : JobBase
         WriteIndented = true
     };
 
-    private bool SkipJitDiff => TryGetFlag("SkipJitDiff");
-
     public RegexDiffJob(HttpClient client, Dictionary<string, string> metadata) : base(client, metadata) { }
 
     protected override async Task RunJobCoreAsync()
@@ -27,27 +25,13 @@ internal sealed class RegexDiffJob : JobBase
 
         await JitDiffJob.CloneRuntimeAndSetupToolsAsync(this);
 
-        if (SkipJitDiff)
-        {
-            await RunProcessAsync("bash", $"build.sh clr+libs -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "main release", workDir: "runtime");
-        }
-        else
-        {
-            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main", uploadArtifacts: false);
-        }
+        await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main", uploadArtifacts: false);
 
         var mainSources = await RunSourceGeneratorOnKnownPatternsAsync("main");
 
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
-        if (SkipJitDiff)
-        {
-            await RunProcessAsync("runtime/.dotnet/dotnet", $"build src/libraries/System.Text.RegularExpressions/gen -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "pr release", workDir: "runtime");
-        }
-        else
-        {
-            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr", uploadArtifacts: false);
-        }
+        await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr", uploadArtifacts: false);
 
         var prSources = await RunSourceGeneratorOnKnownPatternsAsync("pr");
 
@@ -502,11 +486,6 @@ internal sealed class RegexDiffJob : JobBase
         string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
         string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
 
-        if (SkipJitDiff)
-        {
-            return;
-        }
-
         await Task.WhenAll(
             JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-main", "clr-checked-main", JitDiffJob.DiffsMainDirectory, mainAssembly),
             JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-pr", "clr-checked-pr", JitDiffJob.DiffsPrDirectory, prAssembly));
@@ -560,11 +539,6 @@ internal sealed class RegexDiffJob : JobBase
             if (TryGetFlag("UploadTestAssembly"))
             {
                 await ZipAndUploadArtifactAsync(directory, directory);
-            }
-
-            if (SkipJitDiff)
-            {
-                return string.Empty;
             }
 
             await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
