@@ -80,27 +80,43 @@ internal static partial class JitDiffUtils
             return string.Empty;
         }
 
-        int currentLength = 0;
         bool someChangesSkipped = false;
 
-        List<string> changesToShow = new();
+        List<string> changesToShow = [];
 
-        foreach (var change in diffs)
+        if (diffs.Sum(d => d.Length) <= lengthLimit)
         {
-            if (change.Length > lengthLimit)
+            changesToShow.AddRange(diffs);
+        }
+        else
+        {
+            int maxLengthPerEntry = lengthLimit;
+
+            if (diffs.Length >= 5 && diffs.Average(d => d.Length) < lengthLimit / 3)
             {
-                someChangesSkipped = true;
-                lengthLimitExceeded = true;
-                continue;
+                maxLengthPerEntry = lengthLimit / 3;
             }
 
-            if ((currentLength += change.Length) > lengthLimit)
-            {
-                lengthLimitExceeded = true;
-                break;
-            }
+            int currentLength = 0;
 
-            changesToShow.Add(change);
+            foreach (var change in diffs)
+            {
+                if (change.Length > maxLengthPerEntry)
+                {
+                    someChangesSkipped = true;
+                    lengthLimitExceeded = true;
+                    continue;
+                }
+
+                if (currentLength + change.Length > lengthLimit)
+                {
+                    lengthLimitExceeded = true;
+                    continue;
+                }
+
+                changesToShow.Add(change);
+                currentLength += change.Length;
+            }
         }
 
         StringBuilder sb = new();
