@@ -15,6 +15,8 @@ internal sealed class RegexDiffJob : JobBase
         WriteIndented = true
     };
 
+    private bool SkipJitDiff => TryGetFlag("SkipJitDiff");
+
     public RegexDiffJob(HttpClient client, Dictionary<string, string> metadata) : base(client, metadata) { }
 
     protected override async Task RunJobCoreAsync()
@@ -25,13 +27,27 @@ internal sealed class RegexDiffJob : JobBase
 
         await JitDiffJob.CloneRuntimeAndSetupToolsAsync(this);
 
-        await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main");
+        if (SkipJitDiff)
+        {
+            await RunProcessAsync("bash", $"build.sh clr+libs -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "main release", workDir: "runtime");
+        }
+        else
+        {
+            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main");
+        }
 
         var mainSources = await RunSourceGeneratorOnKnownPatternsAsync("main");
 
         await RunProcessAsync("git", "switch pr", workDir: "runtime");
 
-        await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr");
+        if (SkipJitDiff)
+        {
+            await RunProcessAsync("runtime/.dotnet/dotnet", $"build src/libraries/System.Text.RegularExpressions/gen -c Release {RuntimeHelpers.LibrariesExtraBuildArgs}", logPrefix: "pr release", workDir: "runtime");
+        }
+        else
+        {
+            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr");
+        }
 
         var prSources = await RunSourceGeneratorOnKnownPatternsAsync("pr");
 
@@ -483,12 +499,10 @@ internal sealed class RegexDiffJob : JobBase
 
     private async Task RunJitDiffAsync(RegexEntry[] entries)
     {
-        bool skipJitDiff = TryGetFlag("SkipJitDiff");
-
         string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
         string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
 
-        if (skipJitDiff)
+        if (SkipJitDiff)
         {
             return;
         }
@@ -545,7 +559,7 @@ internal sealed class RegexDiffJob : JobBase
                 await ZipAndUploadArtifactAsync(directory, directory);
             }
 
-            if (skipJitDiff)
+            if (SkipJitDiff)
             {
                 return string.Empty;
             }
