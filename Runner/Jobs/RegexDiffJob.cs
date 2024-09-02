@@ -540,7 +540,14 @@ internal sealed class RegexDiffJob : JobBase
 
             await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
 
-            return $"{directory}/artifacts/KnownPatterns.dll";
+            string artifactsPath = $"{directory}/artifacts";
+
+            if (TryGetFlag("UploadTestAssembly"))
+            {
+                await ZipAndUploadArtifactAsync(artifactsPath, artifactsPath);
+            }
+
+            return $"{artifactsPath}/KnownPatterns.dll";
         }
 
         string? TryGetExtraInfo(string name)
