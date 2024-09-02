@@ -182,24 +182,16 @@ internal sealed class RegexDiffJob : JobBase
                 File.WriteAllText(mainFile, mainSource);
                 File.WriteAllText(prFile, prSource);
 
-                List<string> fullDiffLines = new();
-                await RunProcessAsync("git", $"diff --histogram -U1000000 {mainFile} {prFile}", fullDiffLines,
-                    checkExitCode: false, suppressOutputLogs: true, suppressStartingLog: true);
-
-                List<string> shortDiffLines = new();
-                await RunProcessAsync("git", $"diff --histogram {mainFile} {prFile}", shortDiffLines,
-                    checkExitCode: false, suppressOutputLogs: true, suppressStartingLog: true);
+                List<string> shortDiffLines = await GitHelper.DiffAsync(this, mainFile, prFile);
+                List<string> fullDiffLines = await GitHelper.DiffAsync(this, mainFile, prFile, fullContext: true);
 
                 File.Delete(mainFile);
                 File.Delete(prFile);
 
-                fullDiffLines.RemoveAll(ShouldSkipLine);
-                shortDiffLines.RemoveAll(ShouldSkipLine);
-
                 TrimExcessLeadingWhiteSpace(shortDiffLines);
 
-                entry.FullDiff = string.Join('\n', fullDiffLines);
                 entry.ShortDiff = string.Join('\n', shortDiffLines);
+                entry.FullDiff = string.Join('\n', fullDiffLines);
             }
 
             int currentProcessed = Interlocked.Increment(ref entriesProcessed);
@@ -208,17 +200,6 @@ internal sealed class RegexDiffJob : JobBase
                 await LogAsync($"Generated diffs for {currentProcessed} out of {entries.Length} patterns");
             }
         });
-
-        static bool ShouldSkipLine(string line)
-        {
-            return
-                line.StartsWith("diff --git", StringComparison.Ordinal) ||
-                line.StartsWith("index ", StringComparison.Ordinal) ||
-                line.StartsWith("+++", StringComparison.Ordinal) ||
-                line.StartsWith("---", StringComparison.Ordinal) ||
-                line.StartsWith("@@", StringComparison.Ordinal) ||
-                line.StartsWith("\\ No newline at end of file", StringComparison.Ordinal);
-        }
 
         static void TrimExcessLeadingWhiteSpace(List<string> lines)
         {
@@ -429,8 +410,8 @@ internal sealed class RegexDiffJob : JobBase
 
         if (entries.Any(e => e.ShortDiff is not null))
         {
-            string shortExample = GenerateExamplesMarkdown(entries, maxMarkdownLength: 50_000, maxEntries: 10);
-            string longExample = GenerateExamplesMarkdown(entries, maxMarkdownLength: 900 * 1024, maxEntries: int.MaxValue);
+            string shortExample = GenerateExamplesMarkdown(entries, GitHubHelpers.CommentLengthLimit / 2, maxEntries: 10);
+            string longExample = GenerateExamplesMarkdown(entries, GitHubHelpers.GistLengthLimit, maxEntries: int.MaxValue);
 
             await UploadTextArtifactAsync("ShortExampleDiffs.md", shortExample);
 
