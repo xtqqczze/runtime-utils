@@ -511,6 +511,8 @@ internal sealed class RegexDiffJob : JobBase
             JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-main", "clr-checked-main", JitDiffJob.DiffsMainDirectory, mainAssembly),
             JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-pr", "clr-checked-pr", JitDiffJob.DiffsPrDirectory, prAssembly));
 
+        PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs", JitDiffJob.DiffsDirectory));
+
         string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this,
             $"{JitDiffJob.DiffsMainDirectory}/{JitDiffJob.DasmSubdirectory}",
             $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}",
