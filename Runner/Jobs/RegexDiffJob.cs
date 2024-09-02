@@ -33,7 +33,7 @@ internal sealed class RegexDiffJob : JobBase
         }
         else
         {
-            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main");
+            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "main", uploadArtifacts: false);
         }
 
         var mainSources = await RunSourceGeneratorOnKnownPatternsAsync("main");
@@ -46,7 +46,7 @@ internal sealed class RegexDiffJob : JobBase
         }
         else
         {
-            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr");
+            await JitDiffJob.BuildAndCopyRuntimeBranchBitsAsync(this, "pr", uploadArtifacts: false);
         }
 
         var prSources = await RunSourceGeneratorOnKnownPatternsAsync("pr");

@@ -76,7 +76,7 @@ internal sealed class JitDiffJob : JobBase
         await cloneRuntimeTask;
     }
 
-    public static async Task BuildAndCopyRuntimeBranchBitsAsync(JobBase job, string branch)
+    public static async Task BuildAndCopyRuntimeBranchBitsAsync(JobBase job, string branch, bool uploadArtifacts = true)
     {
         string arch = IsArm ? "arm64" : "x64";
 
@@ -87,8 +87,11 @@ internal sealed class JitDiffJob : JobBase
         await job.RunProcessAsync("bash", "build.sh clr.jit -c Checked", logPrefix: $"{branch} checked", workDir: "runtime");
         await job.RunProcessAsync("cp", $"-r runtime/artifacts/bin/coreclr/linux.{arch}.Checked/. clr-checked-{branch}", logPrefix: $"{branch} checked");
 
-        job.PendingTasks.Enqueue(job.ZipAndUploadArtifactAsync($"build-artifacts-{branch}", $"artifacts-{branch}"));
-        job.PendingTasks.Enqueue(job.ZipAndUploadArtifactAsync($"build-clr-checked-{branch}", $"clr-checked-{branch}"));
+        if (uploadArtifacts)
+        {
+            job.PendingTasks.Enqueue(job.ZipAndUploadArtifactAsync($"build-artifacts-{branch}", $"artifacts-{branch}"));
+            job.PendingTasks.Enqueue(job.ZipAndUploadArtifactAsync($"build-clr-checked-{branch}", $"clr-checked-{branch}"));
+        }
 
         await copyReleaseBitsTask;
     }
