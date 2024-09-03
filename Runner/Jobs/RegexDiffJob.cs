@@ -21,7 +21,7 @@ internal sealed class RegexDiffJob : JobBase
     {
         await ChangeWorkingDirectoryToRamDiskAsync();
 
-        await DownloadKnownPatternsAsync();
+        KnownPattern[] knownPatterns = await DownloadKnownPatternsAsync();
 
         await JitDiffJob.CloneRuntimeAndSetupToolsAsync(this);
 
@@ -45,10 +45,10 @@ internal sealed class RegexDiffJob : JobBase
 
         await RuntimeHelpers.InstallRuntimeDotnetSdkAsync(this);
 
-        await RunJitDiffAsync(entries);
+        await RunJitDiffAsync(knownPatterns, entries);
     }
 
-    private async Task DownloadKnownPatternsAsync()
+    private async Task<KnownPattern[]> DownloadKnownPatternsAsync()
     {
         KnownPattern[]? knownPatterns = await HttpClient.GetFromJsonAsync<KnownPattern[]>(
             "https://raw.githubusercontent.com/dotnet/runtime-assets/main/src/System.Text.RegularExpressions.TestData/Regex_RealWorldPatterns.json",
@@ -70,6 +70,8 @@ internal sealed class RegexDiffJob : JobBase
             .ToArray();
 
         File.WriteAllText(KnownPatternsPath, JsonSerializer.Serialize(knownPatterns, s_jsonOptions));
+
+        return knownPatterns;
     }
 
     private async Task<Dictionary<KnownPattern, string>> RunSourceGeneratorOnKnownPatternsAsync(string branch)
@@ -481,7 +483,7 @@ internal sealed class RegexDiffJob : JobBase
         }
     }
 
-    private async Task RunJitDiffAsync(RegexEntry[] entries)
+    private async Task RunJitDiffAsync(KnownPattern[] knownPatterns, RegexEntry[] entries)
     {
         string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
         string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
@@ -528,23 +530,24 @@ internal sealed class RegexDiffJob : JobBase
                 </Project>
                 """);
 
-            Parallel.For(0, entries.Length, i =>
+            Parallel.ForEach(entries, entry =>
             {
                 const string Namespace = "namespace System.Text.RegularExpressions.Generated";
 
-                RegexEntry entry = entries[i];
                 string source = baseline ? entry.MainSource : entry.PrSource;
 
                 int offsetOfPartialClass = source.IndexOf("partial class C", StringComparison.Ordinal);
                 int offsetOfNamespace = source.AsSpan(offsetOfPartialClass).IndexOf(Namespace, StringComparison.Ordinal);
 
+                ArgumentOutOfRangeException.ThrowIfNotEqual(TryExtractKnownPatternIndex(source, out int index), true);
+
                 source = source.Remove(offsetOfPartialClass, offsetOfNamespace);
-                source = source.Replace(Namespace, $"namespace Generated_{i}", StringComparison.Ordinal);
+                source = source.Replace(Namespace, $"namespace Generated_{index}", StringComparison.Ordinal);
 
                 source = source.Replace("file sealed class", "public sealed class", StringComparison.Ordinal);
                 source = source.Replace("file static class", "internal static class", StringComparison.Ordinal);
 
-                File.WriteAllText($"{directory}/Regex{i}.cs", source);
+                File.WriteAllText($"{directory}/Regex{index}.cs", source);
             });
 
             if (TryGetFlag("UploadTestAssembly"))
@@ -566,20 +569,32 @@ internal sealed class RegexDiffJob : JobBase
 
         string? TryGetExtraInfo(string name)
         {
-            // Generated_10485.KnownRegex_10533_0+RunnerFactory+Runner:TryMatchAtCurrentPosition(System.ReadOnlySpan`1[ushort]):ubyte:this
-            int offset = name.IndexOf("Generated_", StringComparison.Ordinal);
-
-            if (offset >= 0)
+            if (TryExtractKnownPatternIndex(name, out int index))
             {
-                ReadOnlySpan<char> number = name.AsSpan(offset + "Generated_".Length);
-                int numberLength = number.IndexOfAnyExceptInRange('0', '9');
-                if (numberLength > 0 && int.TryParse(number.Slice(0, numberLength), out int regexIndex))
-                {
-                    return GetGeneratedRegexCodeBlock(entries[regexIndex].Regex);
-                }
+                return GetGeneratedRegexCodeBlock(knownPatterns[index]);
             }
 
             return null;
+        }
+
+        static bool TryExtractKnownPatternIndex(string text, out int index)
+        {
+            // sealed class KnownRegex_12323_0 : Regex
+            // Generated_10533.KnownRegex_10533_0+RunnerFactory+Runner:TryMatchAtCurrentPosition(System.ReadOnlySpan`1[ushort]):ubyte:this
+            int offset = text.IndexOf("KnownRegex_", StringComparison.Ordinal);
+
+            if (offset >= 0)
+            {
+                ReadOnlySpan<char> number = text.AsSpan(offset + "KnownRegex_".Length);
+                int numberLength = number.IndexOfAnyExceptInRange('0', '9');
+                if (numberLength > 0 && int.TryParse(number.Slice(0, numberLength), out index))
+                {
+                    return true;
+                }
+            }
+
+            index = -1;
+            return false;
         }
     }
 
