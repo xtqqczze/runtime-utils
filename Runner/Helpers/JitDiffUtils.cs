@@ -144,6 +144,7 @@ internal static partial class JitDiffUtils
         JobBase job,
         (string Description, string DasmFile, string Name)[] diffs,
         Func<string, string?>? tryGetExtraInfo,
+        Func<string, string> replaceMethodName,
         int maxCount)
     {
         if (diffs.Length == 0)
@@ -183,7 +184,7 @@ internal static partial class JitDiffUtils
             StringBuilder sb = new();
 
             sb.AppendLine("<details>");
-            sb.AppendLine($"<summary>{diff.Description} - {diff.Name}</summary>");
+            sb.AppendLine($"<summary>{diff.Description} - {replaceMethodName(diff.Name)}</summary>");
             sb.AppendLine();
 
             if (tryGetExtraInfo?.Invoke(diff.Name) is { } extraInfo)

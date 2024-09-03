@@ -117,6 +117,7 @@ internal sealed class JitDiffJob : JobBase
             this,
             JitDiffUtils.ParseDiffAnalyzeEntries(diffAnalyzeSummary, regressions),
             tryGetExtraInfo: null,
+            replaceMethodName: name => name,
             maxCount: 20);
 
         string changes = JitDiffUtils.GetCommentMarkdown(diffs, GitHubHelpers.CommentLengthLimit, regressions, out bool truncated);

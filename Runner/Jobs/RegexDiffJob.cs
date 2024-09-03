@@ -509,8 +509,8 @@ internal sealed class RegexDiffJob : JobBase
             $"{JitDiffJob.DiffsPrDirectory}/{JitDiffJob.DasmSubdirectory}",
             count: 1_000);
 
-        await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: true, TryGetExtraInfo);
-        await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: false, TryGetExtraInfo);
+        await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: true, TryGetExtraInfo, ReplaceDiffName);
+        await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: false, TryGetExtraInfo, ReplaceDiffName);
 
         async Task<string> GenerateRegexAssemblyAsync(bool baseline)
         {
@@ -577,6 +577,31 @@ internal sealed class RegexDiffJob : JobBase
             return null;
         }
 
+        string ReplaceDiffName(string name)
+        {
+            // Generated_11132.KnownRegex_11132_0+RunnerFactory+Runner:Scan(System.ReadOnlySpan`1[ushort]):this
+            // Generated_7625.KnownRegex_7625_0+RunnerFactory+Runner:TryMatchAtCurrentPosition(System.ReadOnlySpan`1[ushort]):ubyte:this
+            if (TryExtractKnownPatternIndex(name, out int index))
+            {
+                int offset = name.IndexOf("+Runner:", StringComparison.Ordinal);
+                if (offset >= 0)
+                {
+                    name = name.Substring(offset + "+Runner:".Length);
+
+                    offset = name.IndexOf('(');
+                    if (offset >= 0)
+                    {
+                        name = name.Substring(0, offset);
+
+                        // KnownRegex_7625_0:TryMatchAtCurrentPosition
+                        return $"KnownRegex_{index}:{name}";
+                    }
+                }
+            }
+
+            return name;
+        }
+
         static bool TryExtractKnownPatternIndex(string text, out int index)
         {
             // sealed class KnownRegex_12323_0 : Regex
@@ -598,12 +623,13 @@ internal sealed class RegexDiffJob : JobBase
         }
     }
 
-    private async Task UploadJitDiffExamplesAsync(string diffAnalyzeSummary, bool regressions, Func<string, string?> tryGetExtraInfo)
+    private async Task UploadJitDiffExamplesAsync(string diffAnalyzeSummary, bool regressions, Func<string, string?> tryGetExtraInfo, Func<string, string> replaceName)
     {
         var (diffs, noisyDiffsRemoved) = await JitDiffUtils.GetDiffMarkdownAsync(
             this,
             JitDiffUtils.ParseDiffAnalyzeEntries(diffAnalyzeSummary, regressions),
             tryGetExtraInfo,
+            replaceName,
             maxCount: 1_000);
 
         string changes = JitDiffUtils.GetCommentMarkdown(diffs, GitHubHelpers.GistLengthLimit, regressions, out bool truncated);
