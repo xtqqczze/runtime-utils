@@ -153,9 +153,11 @@ internal static class RuntimeHelpers
 
     public static int GetDotnetVersion()
     {
-        // "version": "9.0.100-preview.5.24307.3", => 9
-        return File.ReadAllLines("runtime/global.json")
+        // "version": "10.0.100-preview.1.12345.6", => 10
+        return int.Parse(File.ReadAllLines("runtime/global.json")
             .First(line => line.Contains("version", StringComparison.OrdinalIgnoreCase))
-            .Split(':')[1].TrimStart(' ', '"')[0] - '0';
+            .Split(':')[1] //  "10.0.100-preview.1.12345.6"
+            .Split('.')[0] //  "10
+            .TrimStart(' ', '"'));
     }
 }
