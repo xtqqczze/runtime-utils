@@ -16,6 +16,7 @@ internal sealed class BackportJob : JobBase
         string newBranch = Metadata["BackportJob_NewBranch"];
         string patchUrl = Metadata["BackportJob_PatchUrl"];
         string title = Metadata["BackportJob_Title"];
+        string body = Metadata["BackportJob_Body"];
 
         File.WriteAllBytes("changes.patch", await HttpClient.GetByteArrayAsync(patchUrl));
 
@@ -35,7 +36,7 @@ internal sealed class BackportJob : JobBase
             """,
             line => line.Replace(pushToken, "<REDACTED>", StringComparison.OrdinalIgnoreCase));
 
-        await CreatePullRequestAsync(pushToken, baseRepo, targetBranch, forkRepo, newBranch, title, body: string.Empty, maintainerCanModify: true);
+        await CreatePullRequestAsync(pushToken, baseRepo, targetBranch, forkRepo, newBranch, title, body, maintainerCanModify: true);
     }
 
     private async Task<int> RunBatchScriptAsync(string name, string script, Func<string, string>? processLogs = null)
