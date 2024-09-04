@@ -75,6 +75,7 @@ static async Task RunAsync(string[] args)
         nameof(RebaseJob) => new RebaseJob(client, metadata),
         nameof(BenchmarkLibrariesJob) => new BenchmarkLibrariesJob(client, metadata),
         nameof(RegexDiffJob) => new RegexDiffJob(client, metadata),
+        nameof(BackportJob) => new BackportJob(client, metadata),
         var type => throw new NotSupportedException(type),
     };
 
