@@ -51,6 +51,7 @@ internal sealed class BackportJob : JobBase
         request.Headers.Accept.ParseAdd("application/vnd.github+json");
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
         request.Headers.Add("X-GitHub-Api-Version", "2022-11-28");
+        request.Headers.Add("User-Agent", "MihuBot");
 
         request.Content = JsonContent.Create(new
         {
@@ -67,7 +68,7 @@ internal sealed class BackportJob : JobBase
 
         using HttpResponseMessage response = await HttpClient.SendAsync(request, JobTimeout);
 
-        await UploadTextArtifactAsync("GithubResponse.json", await response.Content.ReadAsStringAsync(JobTimeout));
+        await UploadTextArtifactAsync("GithubResponse.txt", await response.Content.ReadAsStringAsync(JobTimeout));
 
         response.EnsureSuccessStatusCode();
     }
