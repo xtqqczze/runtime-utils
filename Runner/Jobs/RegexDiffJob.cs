@@ -436,12 +436,19 @@ internal sealed class RegexDiffJob : JobBase
             await UploadArtifactAsync("Results.zip");
         }));
 
-        if (entries.Any(e => e.ShortDiff is not null))
+        int patternsWithDiffs = entries.Count(e => e.ShortDiff is not null);
+
+        if (patternsWithDiffs > 0)
         {
             string shortExample = GenerateExamplesMarkdown(entries, GitHubHelpers.CommentLengthLimit / 2, maxEntries: 10);
             string longExample = GenerateExamplesMarkdown(entries, GitHubHelpers.GistLengthLimit, maxEntries: int.MaxValue);
 
-            await UploadTextArtifactAsync("ShortExampleDiffs.md", shortExample);
+            await UploadTextArtifactAsync("ShortExampleDiffs.md",
+                $"""
+                {patternsWithDiffs} out of {entries.Length} patterns have generated source code changes.
+
+                {shortExample}
+                """);
 
             if (shortExample != longExample)
             {
