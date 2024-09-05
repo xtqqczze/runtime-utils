@@ -2,6 +2,7 @@
 using Microsoft.CodeAnalysis.CSharp;
 using System.Globalization;
 using System.IO.Compression;
+using System.Text.Json.Serialization;
 
 namespace Runner.Jobs;
 
@@ -12,7 +13,8 @@ internal sealed class RegexDiffJob : JobBase
     private static readonly JsonSerializerOptions s_jsonOptions = new()
     {
         ReadCommentHandling = JsonCommentHandling.Skip,
-        WriteIndented = true
+        WriteIndented = true,
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
     };
 
     public RegexDiffJob(HttpClient client, Dictionary<string, string> metadata) : base(client, metadata) { }
@@ -293,7 +295,7 @@ internal sealed class RegexDiffJob : JobBase
         {
             string source = entry.PrSource;
 
-            List<string> searchValuesOfChar = [];
+            List<(string, string)> searchValuesOfChar = [];
             List<(string[], StringComparison)> searchValuesOfString = [];
 
             int utilitiesOffset = source.IndexOf("file static class Utilities", StringComparison.Ordinal);
@@ -307,6 +309,10 @@ internal sealed class RegexDiffJob : JobBase
 
                     if (trimmed.StartsWith("internal static readonly SearchValues<char>", StringComparison.Ordinal))
                     {
+                        trimmed = trimmed.Slice("internal static readonly SearchValues<char>".Length);
+
+                        string name = trimmed.Slice(0, trimmed.IndexOf(' ')).Trim().ToString();
+
                         int startOffset = trimmed.IndexOf("SearchValues.Create(", StringComparison.Ordinal);
                         trimmed = trimmed.Slice(startOffset + "SearchValues.Create(".Length);
                         int endOffset = trimmed.LastIndexOf(");", StringComparison.Ordinal);
@@ -314,7 +320,7 @@ internal sealed class RegexDiffJob : JobBase
 
                         if (trimmed == "\"\"") continue;
 
-                        searchValuesOfChar.Add(ParseCSharpLiteral(trimmed, out _));
+                        searchValuesOfChar.Add((name, ParseCSharpLiteral(trimmed, out _)));
                     }
                     else if (trimmed.StartsWith("internal static readonly SearchValues<string>", StringComparison.Ordinal))
                     {
@@ -351,8 +357,15 @@ internal sealed class RegexDiffJob : JobBase
                 }
             }
 
-            entry.SearchValuesOfChar = searchValuesOfChar.ToArray();
-            entry.SearchValuesOfString = searchValuesOfString.ToArray();
+            if (searchValuesOfChar.Count > 0)
+            {
+                entry.SearchValuesOfChar = searchValuesOfChar.ToArray();
+            }
+
+            if (searchValuesOfString.Count > 0)
+            {
+                entry.SearchValuesOfString = searchValuesOfString.ToArray();
+            }
         }
 
         static string ParseCSharpLiteral(ReadOnlySpan<char> literal, out int indexOfEndingQuote)
@@ -691,7 +704,7 @@ internal sealed class RegexDiffJob : JobBase
         public required string PrSource { get; set; }
         public string? FullDiff { get; set; }
         public string? ShortDiff { get; set; }
-        public string[]? SearchValuesOfChar { get; set; }
+        public (string Name, string Values)[]? SearchValuesOfChar { get; set; }
         public (string[] Values, StringComparison ComparisonType)[]? SearchValuesOfString { get; set; }
     }
 }
