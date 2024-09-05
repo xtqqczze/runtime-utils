@@ -62,9 +62,19 @@ internal sealed class RegexDiffJob : JobBase
 
         await LogAsync($"Downloaded {knownPatterns.Length} patterns");
 
-        knownPatterns = knownPatterns.Distinct().ToArray();
+        knownPatterns = knownPatterns
+            .Distinct()
+            .ToArray();
 
         await LogAsync($"Using {knownPatterns.Length} distinct patterns");
+
+        // 'Compiled' doesn't matter for the source generator.
+        knownPatterns = knownPatterns
+            .Select(pattern => new KnownPattern(pattern.Pattern, pattern.Options & ~RegexOptions.Compiled, pattern.Count))
+            .Distinct()
+            .ToArray();
+
+        await LogAsync($"Using {knownPatterns.Length} distinct patterns after removing 'RegexOptions.Compiled'");
 
         knownPatterns = knownPatterns
             .OrderByDescending(p => p.Count)
@@ -710,15 +720,21 @@ internal sealed class RegexDiffJob : JobBase
 
     private static string GetGeneratedRegexCodeBlock(KnownPattern regex)
     {
-        string options = regex.Options.ToString();
-        options = int.TryParse(options, out _)
-            ? $"(RegexOptions){(int)regex.Options}"
-            : string.Join(" | ", options.Split(", ").Select(opt => $"{nameof(RegexOptions)}.{opt}"));
+        string options = string.Empty;
+
+        if (regex.Options != RegexOptions.None)
+        {
+            options = regex.Options.ToString();
+            options = int.TryParse(options, out _)
+                ? $"(RegexOptions){(int)regex.Options}"
+                : string.Join(" | ", options.Split(", ").Select(opt => $"{nameof(RegexOptions)}.{opt}"));
+            options = $", {options}";
+        }
 
         return
             $"""
             ```c#
-            [GeneratedRegex({SymbolDisplay.FormatLiteral(regex.Pattern, quote: true)}, {options})]
+            [GeneratedRegex({SymbolDisplay.FormatLiteral(regex.Pattern, quote: true)}{options})]
             ```
             """;
     }
