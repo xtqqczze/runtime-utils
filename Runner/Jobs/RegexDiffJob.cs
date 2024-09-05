@@ -449,17 +449,15 @@ internal sealed class RegexDiffJob : JobBase
 
         int patternsWithDiffs = entries.Count(e => e.ShortDiff is not null);
 
+        // MihuBot looks for this exact string in logs
+        await LogAsync($"NOTE: {patternsWithDiffs} out of {entries.Length} patterns have generated source code changes.");
+
         if (patternsWithDiffs > 0)
         {
             string shortExample = GenerateExamplesMarkdown(entries, GitHubHelpers.CommentLengthLimit / 2, maxEntries: 10);
             string longExample = GenerateExamplesMarkdown(entries, GitHubHelpers.GistLengthLimit, maxEntries: int.MaxValue);
 
-            await UploadTextArtifactAsync("ShortExampleDiffs.md",
-                $"""
-                {patternsWithDiffs} out of {entries.Length} patterns have generated source code changes.
-
-                {shortExample}
-                """);
+            await UploadTextArtifactAsync("ShortExampleDiffs.md", shortExample);
 
             if (shortExample != longExample)
             {
