@@ -14,7 +14,8 @@ internal sealed class RegexDiffJob : JobBase
     {
         ReadCommentHandling = JsonCommentHandling.Skip,
         WriteIndented = true,
-        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull
+        DefaultIgnoreCondition = JsonIgnoreCondition.WhenWritingNull,
+        IncludeFields = true
     };
 
     public RegexDiffJob(HttpClient client, Dictionary<string, string> metadata) : base(client, metadata) { }
