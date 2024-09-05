@@ -562,7 +562,7 @@ internal sealed class RegexDiffJob : JobBase
 
                 Parallel.For(0, entries.Length, i =>
                 {
-                    if (i % processorId != 0)
+                    if (i % Environment.ProcessorCount != processorId)
                     {
                         return;
                     }
