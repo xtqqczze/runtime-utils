@@ -310,7 +310,7 @@ internal sealed class RegexDiffJob : JobBase
 
                     if (trimmed.StartsWith("internal static readonly SearchValues<char>", StringComparison.Ordinal))
                     {
-                        trimmed = trimmed.Slice("internal static readonly SearchValues<char>".Length);
+                        trimmed = trimmed.Slice("internal static readonly SearchValues<char>".Length + 1);
 
                         string name = trimmed.Slice(0, trimmed.IndexOf(' ')).Trim().ToString();
 
