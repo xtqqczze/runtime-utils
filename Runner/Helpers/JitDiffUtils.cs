@@ -9,9 +9,11 @@ internal static partial class JitDiffUtils
         await RunJitDiffAsync(job, coreRootFolder, checkedClrFolder, outputFolder, "--frameworks");
     }
 
-    public static async Task RunJitDiffOnAssemblyAsync(JobBase job, string coreRootFolder, string checkedClrFolder, string outputFolder, string assemblyPath)
+    public static async Task RunJitDiffOnAssembliesAsync(JobBase job, string coreRootFolder, string checkedClrFolder, string outputFolder, string[] assemblyPaths)
     {
-        await RunJitDiffAsync(job, coreRootFolder, checkedClrFolder, outputFolder, $"--assembly {assemblyPath}");
+        ArgumentOutOfRangeException.ThrowIfZero(assemblyPaths.Length);
+
+        await RunJitDiffAsync(job, coreRootFolder, checkedClrFolder, outputFolder, string.Join(' ', assemblyPaths.Select(path => $"--assembly {path}")));
     }
 
     private static async Task RunJitDiffAsync(JobBase job, string coreRootFolder, string checkedClrFolder, string outputFolder, string frameworksOrAssembly)

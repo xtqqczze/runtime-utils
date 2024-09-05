@@ -505,12 +505,12 @@ internal sealed class RegexDiffJob : JobBase
 
     private async Task RunJitDiffAsync(KnownPattern[] knownPatterns, RegexEntry[] entries)
     {
-        string mainAssembly = await GenerateRegexAssemblyAsync(baseline: true);
-        string prAssembly = await GenerateRegexAssemblyAsync(baseline: false);
+        string[] mainAssemblies = await GenerateRegexAssembliesAsync(baseline: true);
+        string[] prAssemblies = await GenerateRegexAssembliesAsync(baseline: false);
 
         await Task.WhenAll(
-            JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-main", "clr-checked-main", JitDiffJob.DiffsMainDirectory, mainAssembly),
-            JitDiffUtils.RunJitDiffOnAssemblyAsync(this, "artifacts-pr", "clr-checked-pr", JitDiffJob.DiffsPrDirectory, prAssembly));
+            JitDiffUtils.RunJitDiffOnAssembliesAsync(this, "artifacts-main", "clr-checked-main", JitDiffJob.DiffsMainDirectory, mainAssemblies),
+            JitDiffUtils.RunJitDiffOnAssembliesAsync(this, "artifacts-pr", "clr-checked-pr", JitDiffJob.DiffsPrDirectory, prAssemblies));
 
         PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs", JitDiffJob.DiffsDirectory));
 
@@ -532,59 +532,81 @@ internal sealed class RegexDiffJob : JobBase
         await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: true, TryGetExtraInfo, ReplaceDiffName);
         await UploadJitDiffExamplesAsync(diffAnalyzeSummary, regressions: false, TryGetExtraInfo, ReplaceDiffName);
 
-        async Task<string> GenerateRegexAssemblyAsync(bool baseline)
+        async Task<string[]> GenerateRegexAssembliesAsync(bool baseline)
         {
             string suffix = baseline ? "Main" : "Pr";
+            string projectsDirectory = $"KnownPatternsProjects{suffix}";
+            Directory.CreateDirectory(projectsDirectory);
 
-            string directory = $"KnownPatternsProject{suffix}";
-            Directory.CreateDirectory(directory);
+            List<string> assemblyPaths = [];
 
-            File.WriteAllText($"{directory}/KnownPatterns.csproj",
-                $"""
-                <Project Sdk="Microsoft.NET.Sdk">
-                  <PropertyGroup>
-                    <OutputType>Library</OutputType>
-                    <TargetFramework>net{RuntimeHelpers.GetDotnetVersion()}.0</TargetFramework>
-                    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-                  </PropertyGroup>
-                </Project>
-                """);
-
-            Parallel.ForEach(entries, entry =>
+            await Parallel.ForAsync(0, Environment.ProcessorCount, async (processorId, _) =>
             {
-                const string Namespace = "namespace System.Text.RegularExpressions.Generated";
+                string idString = processorId.ToString().PadLeft(Environment.ProcessorCount.ToString().Length, '0');
+                string projectName = $"KnownPatterns_{idString}";
 
-                string source = baseline ? entry.MainSource : entry.PrSource;
+                string directory = $"{projectsDirectory}/{projectName}";
+                Directory.CreateDirectory(directory);
 
-                int offsetOfPartialClass = source.IndexOf("partial class C", StringComparison.Ordinal);
-                int offsetOfNamespace = source.AsSpan(offsetOfPartialClass).IndexOf(Namespace, StringComparison.Ordinal);
+                File.WriteAllText($"{directory}/{projectName}.csproj",
+                    $"""
+                    <Project Sdk="Microsoft.NET.Sdk">
+                      <PropertyGroup>
+                        <OutputType>Library</OutputType>
+                        <TargetFramework>net{RuntimeHelpers.GetDotnetVersion()}.0</TargetFramework>
+                        <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+                      </PropertyGroup>
+                    </Project>
+                    """);
 
-                ArgumentOutOfRangeException.ThrowIfNotEqual(TryExtractKnownPatternIndex(source, out int index), true);
+                Parallel.For(0, entries.Length, i =>
+                {
+                    if (i % processorId != 0)
+                    {
+                        return;
+                    }
 
-                source = source.Remove(offsetOfPartialClass, offsetOfNamespace);
-                source = source.Replace(Namespace, $"namespace Generated_{index}", StringComparison.Ordinal);
+                    RegexEntry entry = entries[i];
 
-                source = source.Replace("file sealed class", "public sealed class", StringComparison.Ordinal);
-                source = source.Replace("file static class", "internal static class", StringComparison.Ordinal);
+                    const string Namespace = "namespace System.Text.RegularExpressions.Generated";
 
-                File.WriteAllText($"{directory}/Regex{index}.cs", source);
+                    string source = baseline ? entry.MainSource : entry.PrSource;
+
+                    int offsetOfPartialClass = source.IndexOf("partial class C", StringComparison.Ordinal);
+                    int offsetOfNamespace = source.AsSpan(offsetOfPartialClass).IndexOf(Namespace, StringComparison.Ordinal);
+
+                    ArgumentOutOfRangeException.ThrowIfNotEqual(TryExtractKnownPatternIndex(source, out int index), true);
+
+                    source = source.Remove(offsetOfPartialClass, offsetOfNamespace);
+                    source = source.Replace(Namespace, $"namespace Generated_{index}", StringComparison.Ordinal);
+
+                    source = source.Replace("file sealed class", "public sealed class", StringComparison.Ordinal);
+                    source = source.Replace("file static class", "internal static class", StringComparison.Ordinal);
+
+                    File.WriteAllText($"{directory}/Regex{index}.cs", source);
+                });
+
+                if (TryGetFlag("UploadTestAssemblies"))
+                {
+                    await ZipAndUploadArtifactAsync($"Project{suffix}_{idString}", directory);
+                }
+
+                await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
+
+                string artifactsPath = $"{directory}/artifacts";
+
+                if (TryGetFlag("UploadTestAssemblies"))
+                {
+                    await ZipAndUploadArtifactAsync($"Artifacts{suffix}_{idString}", artifactsPath);
+                }
+
+                lock (assemblyPaths)
+                {
+                    assemblyPaths.Add($"{artifactsPath}/{projectName}.dll");
+                }
             });
 
-            if (TryGetFlag("UploadTestAssembly"))
-            {
-                await ZipAndUploadArtifactAsync(directory, directory);
-            }
-
-            await RunProcessAsync("runtime/.dotnet/dotnet", "publish -o artifacts", workDir: directory);
-
-            string artifactsPath = $"{directory}/artifacts";
-
-            if (TryGetFlag("UploadTestAssembly"))
-            {
-                await ZipAndUploadArtifactAsync(artifactsPath, artifactsPath);
-            }
-
-            return $"{artifactsPath}/KnownPatterns.dll";
+            return assemblyPaths.ToArray();
         }
 
         string? TryGetExtraInfo(string name)
