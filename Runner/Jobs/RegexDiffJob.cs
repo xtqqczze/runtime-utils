@@ -704,7 +704,7 @@ internal sealed class RegexDiffJob : JobBase
             patternLiteral = $"{patternLiteral.AsSpan(0, lengthLimit - 5)} ...\"";
         }
 
-        return $"{WebUtility.HtmlEncode(patternLiteral)} ({regex.Count} uses)";
+        return $"{WebUtility.HtmlEncode(patternLiteral)} ({regex.Count} use{(regex.Count == 1 ? "" : "s")})";
     }
 
     private static string GetGeneratedRegexCodeBlock(KnownPattern regex)
