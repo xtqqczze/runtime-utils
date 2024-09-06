@@ -481,6 +481,9 @@ public abstract class JobBase
                     .Where(d => d.IsReady)
                     .ToArray();
 
+                await LogAsync($"Drives available: {string.Join(", ", drives.Select(
+                    d => $"Ready={d.IsReady} AvailableGB={d.AvailableFreeSpace >> 30} Path={d.RootDirectory.FullName}"))}");
+
                 if (drives.Length > 1)
                 {
                     DriveInfo drive = drives.MaxBy(d => d.AvailableFreeSpace)!;
