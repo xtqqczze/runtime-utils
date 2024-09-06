@@ -87,6 +87,8 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         await LogAsync($"Matched: {string.Join(", ", matchingFuzzers)}");
 
+        int maxDurationPerFuzzer = TryGetFlag("long") ? int.MaxValue : 3600;
+
         for (int i = 0; i < matchingFuzzers.Length; i++)
         {
             string fuzzerName = matchingFuzzers[i];
@@ -94,9 +96,7 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             int remainingFuzzers = matchingFuzzers.Length - i;
             TimeSpan remainingTime = MaxJobDuration - ElapsedTime - TimeSpan.FromMinutes(5);
             int durationSeconds = (int)(remainingTime / remainingFuzzers).TotalSeconds;
-            durationSeconds = Math.Min(3600, durationSeconds);
-
-            ArgumentOutOfRangeException.ThrowIfLessThan(durationSeconds, 60);
+            durationSeconds = Math.Clamp(durationSeconds, 60, maxDurationPerFuzzer);
 
             await RunFuzzerAsync(fuzzerName, durationSeconds);
         }
