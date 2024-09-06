@@ -13,4 +13,8 @@ stages:
     pool: runtime-utils
     steps:
       - bash: |
-          echo "Got JOB ID: ${{ parameters.MihuBot.job_id }}"
+          cd Runner
+          dotnet run -c Release
+        env:
+          JOB_ID: ${{ parameters.MihuBot.job_id }}
+          RUNTIME_UTILS_TOKEN: $(RuntimeUtilsToken)
