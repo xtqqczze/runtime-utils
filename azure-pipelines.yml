@@ -1,0 +1,16 @@
+trigger: none
+pr: none
+
+resources:
+  webhooks:
+    - webhook: MihuBot
+      connection: MihuBotVM
+
+stages:
+- stage: RunScript
+  jobs:
+  - job: run
+    pool: runtime-utils
+    steps:
+      - bash: |
+          echo "Got JOB ID: ${{ parameters.MihuBot.job_id }}"
