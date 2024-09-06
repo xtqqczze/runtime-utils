@@ -27,6 +27,8 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             throw new Exception("Invalid fuzzer name. Expected something like 'fuzz HttpHeaders'");
         }
 
+        await ChangeWorkingDirectoryToRamOrFastestDiskAsync();
+
         await RuntimeHelpers.CloneRuntimeAsync(this);
 
         await BuildRuntimeAndPrepareFuzzerAsync();

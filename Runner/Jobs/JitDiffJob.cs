@@ -11,7 +11,7 @@ internal sealed class JitDiffJob : JobBase
 
     protected override async Task RunJobCoreAsync()
     {
-        await ChangeWorkingDirectoryToRamDiskAsync();
+        await ChangeWorkingDirectoryToRamOrFastestDiskAsync();
 
         await CloneRuntimeAndSetupToolsAsync(this);
 

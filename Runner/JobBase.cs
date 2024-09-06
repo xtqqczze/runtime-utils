@@ -471,10 +471,32 @@ public abstract class JobBase
         return (int)(memory.TotalPhysical / 1024 / 1024 / 1024);
     }
 
-    protected async Task ChangeWorkingDirectoryToRamDiskAsync()
+    protected async Task ChangeWorkingDirectoryToRamOrFastestDiskAsync()
     {
         if (RuntimeInformation.IsOSPlatform(OSPlatform.Windows))
         {
+            try
+            {
+                DriveInfo[] drives = DriveInfo.GetDrives()
+                    .Where(d => d.IsReady)
+                    .ToArray();
+
+                if (drives.Length > 1)
+                {
+                    DriveInfo drive = drives.MaxBy(d => d.AvailableFreeSpace)!;
+
+                    string newWorkDir = Path.Combine(drive.RootDirectory.FullName, "runner-dir");
+                    Directory.CreateDirectory(newWorkDir);
+
+                    Environment.CurrentDirectory = newWorkDir;
+
+                    await LogAsync($"Changed working directory from {OriginalWorkingDirectory} to {newWorkDir}");
+                }
+            }
+            catch (Exception ex)
+            {
+                await LogAsync($"Failed to apply new working directory: {ex}");
+            }
             return;
         }
 
@@ -506,7 +528,7 @@ public abstract class JobBase
 
                 Environment.CurrentDirectory = NewWorkDir;
 
-                await LogAsync($"Changed working directory to {NewWorkDir}");
+                await LogAsync($"Changed working directory from {OriginalWorkingDirectory} to {NewWorkDir}");
             }
             catch (Exception ex)
             {

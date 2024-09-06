@@ -6,7 +6,7 @@ internal sealed partial class BenchmarkLibrariesJob : JobBase
 
     protected override async Task RunJobCoreAsync()
     {
-        await ChangeWorkingDirectoryToRamDiskAsync();
+        await ChangeWorkingDirectoryToRamOrFastestDiskAsync();
 
         await CloneRuntimeAndPerformanceAndSetupToolsAsync();
 

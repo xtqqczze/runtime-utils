@@ -22,7 +22,7 @@ internal sealed class RegexDiffJob : JobBase
 
     protected override async Task RunJobCoreAsync()
     {
-        await ChangeWorkingDirectoryToRamDiskAsync();
+        await ChangeWorkingDirectoryToRamOrFastestDiskAsync();
 
         KnownPattern[] knownPatterns = await DownloadKnownPatternsAsync();
 
