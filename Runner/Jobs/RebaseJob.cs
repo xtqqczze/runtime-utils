@@ -19,9 +19,9 @@ internal sealed class RebaseJob : JobBase
             git log -1
             git config --global user.email mihubot@mihubot.xyz
             git config --global user.name MihuBot
-            git remote add pr https://MihuBot:{{pushToken}}@github.com/{{SourceRepo}}.git
-            git fetch pr {{SourceBranch}}
-            git checkout {{SourceBranch}}
+            git remote add pr https://MihuBot:{{pushToken}}@github.com/{{PrRepo}}.git
+            git fetch pr {{PrBranch}}
+            git checkout {{PrBranch}}
             git log -1
             """,
             line => line.Replace(pushToken, "<REDACTED>", StringComparison.OrdinalIgnoreCase));

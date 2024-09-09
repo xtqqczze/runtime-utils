@@ -34,8 +34,10 @@ public abstract class JobBase
     public readonly ConcurrentQueue<Task> PendingTasks = new();
 
     public string CustomArguments => Metadata["CustomArguments"];
-    public string SourceRepo => Metadata["PrRepo"];
-    public string SourceBranch => Metadata["PrBranch"];
+    public string BaseRepo => Metadata["BaseRepo"];
+    public string BaseBranch => Metadata["BaseBranch"];
+    public string PrRepo => Metadata["PrRepo"];
+    public string PrBranch => Metadata["PrBranch"];
 
     public bool TryGetFlag(string name) => CustomArguments.Contains($"-{name}", StringComparison.OrdinalIgnoreCase);
 
@@ -108,8 +110,10 @@ public abstract class JobBase
             await LogAsync($"{nameof(Environment.CurrentDirectory)}={Environment.CurrentDirectory}");
             await LogAsync($"{nameof(RuntimeInformation.FrameworkDescription)}={RuntimeInformation.FrameworkDescription}");
             await LogAsync($"{nameof(RuntimeInformation.RuntimeIdentifier)}={RuntimeInformation.RuntimeIdentifier}");
-            await LogAsync($"{nameof(SourceRepo)}={SourceRepo}");
-            await LogAsync($"{nameof(SourceBranch)}={SourceBranch}");
+            await LogAsync($"{nameof(BaseRepo)}={BaseRepo}");
+            await LogAsync($"{nameof(BaseBranch)}={BaseBranch}");
+            await LogAsync($"{nameof(PrRepo)}={PrRepo}");
+            await LogAsync($"{nameof(PrBranch)}={PrBranch}");
 
             Console.WriteLine($"Starting {Metadata["JobType"]} ({Metadata["ExternalId"]}) ...");
 

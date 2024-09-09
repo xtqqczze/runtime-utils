@@ -21,11 +21,12 @@ internal static class RuntimeHelpers
         if (OperatingSystem.IsLinux())
         {
             string script = UpdateMergePlaceholders(
-                """
+                $$$"""
                 set -e
 
-                git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime runtime
+                git clone --no-tags --branch {{{job.BaseBranch}}} --single-branch --progress https://github.com/{{{job.BaseRepo}}} runtime
                 cd runtime
+
                 git log -1
                 chmod 777 build.sh
                 git config --global user.email build@build.foo
@@ -37,7 +38,7 @@ internal static class RuntimeHelpers
 
                 {{MERGE_PR_BRANCHES}}
 
-                git switch main
+                git switch {{{job.BaseBranch}}}
 
                 eng/install-native-dependencies.sh linux
                 """);
@@ -49,9 +50,9 @@ internal static class RuntimeHelpers
         else
         {
             string script = UpdateMergePlaceholders(
-                """
+                $$$"""
                 git config --system core.longpaths true
-                git clone --no-tags --single-branch --progress https://github.com/dotnet/runtime runtime
+                git clone --no-tags --branch {{{job.BaseBranch}}} --single-branch --progress https://github.com/{{{job.BaseRepo}}} runtime
                 cd runtime
                 git log -1
                 git config --global user.email build@build.foo
@@ -63,7 +64,7 @@ internal static class RuntimeHelpers
 
                 {{MERGE_PR_BRANCHES}}
 
-                git switch main
+                git switch {{{job.BaseBranch}}}
                 """);
 
             await job.LogAsync($"Using runtime setup script:\n{script}");
@@ -87,7 +88,7 @@ internal static class RuntimeHelpers
 
             if (name == "combineWith")
             {
-                prList.Insert(0, (job.SourceRepo, job.SourceBranch));
+                prList.Insert(0, (job.PrRepo, job.PrBranch));
             }
 
             return string.Join('\n', prList
