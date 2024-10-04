@@ -87,7 +87,11 @@ internal sealed partial class FuzzLibrariesJob : JobBase
 
         await LogAsync($"Matched: {string.Join(", ", matchingFuzzers)}");
 
-        int maxDurationPerFuzzer = TryGetFlag("long") ? int.MaxValue : 3600;
+        int maxDurationPerFuzzer =
+            TryGetFlag("long") ? int.MaxValue :
+            TryGetFlag("short") ? 600 :
+            TryGetFlag("dry") ? 60 :
+            3600;
 
         for (int i = 0; i < matchingFuzzers.Length; i++)
         {
