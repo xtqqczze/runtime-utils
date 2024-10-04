@@ -45,12 +45,13 @@ internal sealed partial class FuzzLibrariesJob : JobBase
             cd runtime
             git switch pr
 
-            call .\build.cmd clr+libs+packs+host -rc Checked -c Debug {{RuntimeHelpers.LibrariesExtraBuildArgs}}
+            call .\build.cmd clr+libs -rc Checked -c Debug {{RuntimeHelpers.LibrariesExtraBuildArgs}}
 
             cd src\libraries\Fuzzing\DotnetFuzzing
-            ..\..\..\..\.dotnet\dotnet publish -o publish
+            ..\..\..\..\.dotnet\dotnet build-server shutdown
+            ..\..\..\..\.dotnet\dotnet build
             ..\..\..\..\.dotnet\dotnet tool install --tool-path . SharpFuzz.CommandLine
-            publish\DotnetFuzzing.exe prepare-onefuzz deployment
+            call run.bat
             """);
 
         await RunProcessAsync(ScriptName, string.Empty);
