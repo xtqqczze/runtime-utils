@@ -124,6 +124,17 @@ public abstract class JobBase
         catch (Exception ex)
         {
             Console.WriteLine($"Something went wrong: {ex}");
+
+            try
+            {
+                if (!PendingTasks.IsEmpty)
+                {
+                    await LogAsync($"Waiting for {PendingTasks.Count} pending tasks before aborting.");
+                    await WaitForPendingTasksAsync().WaitAsync(TimeSpan.FromMinutes(1));
+                }
+            }
+            catch { }
+
             await ErrorAsync(ex.ToString());
         }
 

@@ -98,11 +98,16 @@ internal sealed class JitDiffJob : JobBase
 
     private async Task<string> CollectFrameworksDiffsAsync()
     {
-        await Task.WhenAll(
-            JitDiffUtils.RunJitDiffOnFrameworksAsync(this, "artifacts-main", "clr-checked-main", DiffsMainDirectory),
-            JitDiffUtils.RunJitDiffOnFrameworksAsync(this, "artifacts-pr", "clr-checked-pr", DiffsPrDirectory));
-
-        PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-frameworks", DiffsDirectory));
+        try
+        {
+            await Task.WhenAll(
+                JitDiffUtils.RunJitDiffOnFrameworksAsync(this, "artifacts-main", "clr-checked-main", DiffsMainDirectory),
+                JitDiffUtils.RunJitDiffOnFrameworksAsync(this, "artifacts-pr", "clr-checked-pr", DiffsPrDirectory));
+        }
+        finally
+        {
+            PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-frameworks", DiffsDirectory));
+        }
 
         string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this, $"{DiffsMainDirectory}/{DasmSubdirectory}", $"{DiffsPrDirectory}/{DasmSubdirectory}");
 
