@@ -106,7 +106,8 @@ internal sealed class JitDiffJob : JobBase
         }
         finally
         {
-            PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-frameworks", DiffsDirectory));
+            PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-main", DiffsMainDirectory));
+            PendingTasks.Enqueue(ZipAndUploadArtifactAsync("jit-diffs-pr", DiffsPrDirectory));
         }
 
         string diffAnalyzeSummary = await JitDiffUtils.RunJitAnalyzeAsync(this, $"{DiffsMainDirectory}/{DasmSubdirectory}", $"{DiffsPrDirectory}/{DasmSubdirectory}");
