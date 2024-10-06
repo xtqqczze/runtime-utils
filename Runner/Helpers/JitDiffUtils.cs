@@ -20,12 +20,13 @@ internal static partial class JitDiffUtils
     {
         bool useCctors = !job.TryGetFlag("nocctors");
         bool useTier0 = job.TryGetFlag("tier0");
-
-        await job.LogAsync($"Using cctors for {coreRootFolder}: {useCctors}");
-        await job.LogAsync($"Using tier0 {coreRootFolder}: {useTier0}");
+        bool verbose = job.TryGetFlag("verbose");
+        bool debugInfo = job.TryGetFlag("debuginfo");
 
         await job.RunProcessAsync("jitutils/bin/jit-diff",
             $"diff " +
+            (debugInfo ? "--debuginfo " : "") +
+            (verbose ? "--verbose " : "") +
             (useCctors ? "--cctors " : "") +
             (useTier0 ? "--tier0 " : "") +
             $"--output {outputFolder} " +
