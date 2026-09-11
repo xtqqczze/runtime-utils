@@ -52,6 +52,8 @@ internal sealed class DiffExamples
         DiffExamples report = new();
         int changedCount = 0;
         int incompleteCount = 0;
+        int newCount = 0;
+        int removedCount = 0;
         bool includeNew = job.TryGetFlag("includeNewMethodRegressions");
         bool includeRemoved = job.TryGetFlag("includeRemovedMethodImprovements");
 
@@ -80,6 +82,14 @@ internal sealed class DiffExamples
                 }
                 baseline.Methods.TryGetValue(name, out Method? before);
                 diff.Methods.TryGetValue(name, out Method? after);
+                if (before is null)
+                {
+                    Interlocked.Increment(ref newCount);
+                }
+                if (after is null)
+                {
+                    Interlocked.Increment(ref removedCount);
+                }
                 if ((before?.Hash == after?.Hash && before?.Bytes == after?.Bytes) ||
                     (before is null && !includeNew) || (after is null && !includeRemoved))
                 {
@@ -175,9 +185,17 @@ internal sealed class DiffExamples
         report.Entries.AddRange(entries.Where(e => e is not null)!);
         report.Summary = $"{changedCount:N0} changed method listings; {report.Entries.Count:N0} examples across {report.Entries.Select(e => e.Assembly).Distinct().Count():N0} assemblies.";
         report.Notes.Add("Examples are interleaved across assemblies and change categories, ranked by absolute byte change within each group. Same-size examples have changed disassembly, not a size improvement or regression.");
-        if (!includeNew || !includeRemoved)
+        if (newCount > 0 || includeNew)
         {
-            report.Notes.Add("New/removed methods are excluded unless enabled with -includeNewMethodRegressions / -includeRemovedMethodImprovements.");
+            report.Notes.Add(includeNew
+                ? $"{newCount:N0} new method listings are included with -includeNewMethodRegressions."
+                : $"{newCount:N0} new method listings are excluded. Use -includeNewMethodRegressions to include them.");
+        }
+        if (removedCount > 0 || includeRemoved)
+        {
+            report.Notes.Add(includeRemoved
+                ? $"{removedCount:N0} removed method listings are included with -includeRemovedMethodImprovements."
+                : $"{removedCount:N0} removed method listings are excluded. Use -includeRemovedMethodImprovements to include them.");
         }
         if (changedCount > selected.Length)
         {
