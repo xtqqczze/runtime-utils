@@ -184,7 +184,6 @@ internal sealed class DiffExamples
 
         report.Entries.AddRange(entries.Where(e => e is not null)!);
         report.Summary = $"{changedCount:N0} changed method listings; {report.Entries.Count:N0} examples across {report.Entries.Select(e => e.Assembly).Distinct().Count():N0} assemblies.";
-        report.Notes.Add("Examples are interleaved across assemblies and change categories, ranked by absolute byte change within each group. Same-size examples have changed disassembly, not a size improvement or regression.");
         if (newCount > 0 || includeNew)
         {
             report.Notes.Add(includeNew
